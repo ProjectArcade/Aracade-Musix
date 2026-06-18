@@ -81,6 +81,77 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadHome() {
         viewModelScope.launch(Dispatchers.IO) {
+            val (cachedHome, cachedRecs) = com.arcadesoftware.musix.HomeCacheManager.load(getApplication())
+            if (cachedHome != null) {
+                _homePage.value = cachedHome
+                similarRecommendations.value = cachedRecs
+                _isLoading.value = false
+                
+                // Fetch fresh data in the background silently
+                launch {
+                    refreshContentSilently()
+                }
+            } else {
+                _isLoading.value = true
+                
+                launch {
+                    val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(getApplication())
+                    val recentHistory = db.musicDao().getRecentPlayHistory(10).first()
+                    val newRecommendations = mutableListOf<SimilarRecommendation>()
+                    for (seed in recentHistory.take(5)) {
+                        val endpoint = com.music.innertube.models.WatchEndpoint(videoId = seed.id)
+                        val nextResult = YouTube.next(endpoint).getOrNull()
+                        if (nextResult != null) {
+                            val items = nextResult.items.filter { it.id != seed.id }.shuffled().take(10)
+                            if (items.isNotEmpty()) {
+                                newRecommendations.add(SimilarRecommendation(seed, items))
+                            }
+                        }
+                    }
+                    val shuffledRecs = newRecommendations.shuffled()
+                    similarRecommendations.value = shuffledRecs
+                    com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), _homePage.value, shuffledRecs)
+                }
+                
+                val result = YouTube.home()
+                result.onSuccess {
+                    _homePage.value = it
+                    com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), it, similarRecommendations.value)
+                }
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private suspend fun refreshContentSilently() {
+        try {
+            val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(getApplication())
+            val recentHistory = db.musicDao().getRecentPlayHistory(10).first()
+            val newRecommendations = mutableListOf<SimilarRecommendation>()
+            for (seed in recentHistory.take(5)) {
+                val endpoint = com.music.innertube.models.WatchEndpoint(videoId = seed.id)
+                val nextResult = YouTube.next(endpoint).getOrNull()
+                if (nextResult != null) {
+                    val items = nextResult.items.filter { it.id != seed.id }.shuffled().take(10)
+                    if (items.isNotEmpty()) {
+                        newRecommendations.add(SimilarRecommendation(seed, items))
+                    }
+                }
+            }
+            val shuffledRecs = newRecommendations.shuffled()
+            val result = YouTube.home()
+            result.onSuccess { freshHome ->
+                _homePage.value = freshHome
+                similarRecommendations.value = shuffledRecs
+                com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), freshHome, shuffledRecs)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HomeViewModel", "Failed to refresh content silently", e)
+        }
+    }
+
+    private fun forceLoadHome() {
+        viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             
             launch {
@@ -97,12 +168,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                similarRecommendations.value = newRecommendations.shuffled()
+                val shuffledRecs = newRecommendations.shuffled()
+                similarRecommendations.value = shuffledRecs
+                com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), _homePage.value, shuffledRecs)
             }
             
             val result = YouTube.home()
             result.onSuccess {
                 _homePage.value = it
+                com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), it, similarRecommendations.value)
             }
             _isLoading.value = false
         }
@@ -132,7 +206,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() {
         viewModelScope.launch {
             _selectedChip.value = null
-            loadHome()
+            forceLoadHome()
         }
     }
 }
@@ -266,31 +340,6 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 }
             }
 
-            // Recommendation rows ("Because you listened to...")
-            if (recommendations.isNotEmpty() && selectedChip == null) {
-                recommendations.forEach { recommendation ->
-                    item {
-                        Column {
-                            Text(
-                                text = "Because you listened to ${recommendation.seed.title}",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                items(recommendation.items) { item ->
-                                    SquareCard(item)
-                                }
-                            }
-                        }
-                    }
-                }
-
-            }
-
             if (isLoading && homePage?.sections.isNullOrEmpty()) {
                 item {
                     HomeSectionSkeleton(isFeatured = true)
@@ -334,6 +383,37 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                                 ) {
                                     items(section.items) { item ->
                                         SquareCard(item)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add recommendations smoothly as section rows below home feed sections
+                if (recommendations.isNotEmpty() && selectedChip == null) {
+                    recommendations.forEach { recommendation ->
+                        item {
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = true,
+                                enter = androidx.compose.animation.fadeIn(
+                                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 600)
+                                )
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Because you listened to ${recommendation.seed.title}",
+                                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        items(recommendation.items) { item ->
+                                            SquareCard(item)
+                                        }
                                     }
                                 }
                             }

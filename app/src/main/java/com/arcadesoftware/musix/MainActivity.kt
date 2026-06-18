@@ -56,6 +56,7 @@ object PlayerManager {
     private const val ACTION_PAUSE = "com.arcadesoftware.musix.ACTION_PAUSE"
     private const val ACTION_PREVIOUS = "com.arcadesoftware.musix.ACTION_PREVIOUS"
     private const val ACTION_NEXT = "com.arcadesoftware.musix.ACTION_NEXT"
+    private const val ACTION_DISMISS = "com.arcadesoftware.musix.ACTION_DISMISS"
 
     val currentSong = MutableStateFlow<YTItem?>(null)
     val isPlaying = MutableStateFlow(false)
@@ -72,6 +73,19 @@ object PlayerManager {
     private var currentMetadataBitmap: android.graphics.Bitmap? = null
     var exoPlayer: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private var simpleCache: androidx.media3.datasource.cache.SimpleCache? = null
+
+    @Synchronized
+    private fun getCache(context: android.content.Context): androidx.media3.datasource.cache.SimpleCache {
+        if (simpleCache == null) {
+            val cacheDir = java.io.File(context.cacheDir, "media_cache")
+            val evictor = androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor(1024 * 1024 * 512) // 512 MB cache
+            val databaseProvider = androidx.media3.database.StandaloneDatabaseProvider(context)
+            simpleCache = androidx.media3.datasource.cache.SimpleCache(cacheDir, evictor, databaseProvider)
+        }
+        return simpleCache!!
+    }
 
     private val TAG = "PlayerManager"
 
@@ -149,6 +163,7 @@ object PlayerManager {
                 addAction(ACTION_PAUSE)
                 addAction(ACTION_PREVIOUS)
                 addAction(ACTION_NEXT)
+                addAction(ACTION_DISMISS)
             }
             val receiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
@@ -157,6 +172,9 @@ object PlayerManager {
                         ACTION_PAUSE -> exoPlayer?.pause()
                         ACTION_PREVIOUS -> playPrevious()
                         ACTION_NEXT -> playNext()
+                        ACTION_DISMISS -> {
+                            appContext?.let { com.arcadesoftware.musix.PlaybackService.stop(it) }
+                        }
                     }
                 }
             }
@@ -189,9 +207,21 @@ object PlayerManager {
                 ))
             }
 
-            val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, resolvingDataSourceFactory)
+            val cache = getCache(context)
+            val cacheDataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(resolvingDataSourceFactory)
+                .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+            val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, cacheDataSourceFactory)
+
+            val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build()
 
             exoPlayer = ExoPlayer.Builder(context)
+                .setAudioAttributes(audioAttributes, true)
                 .setMediaSourceFactory(
                     androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
                 )
@@ -202,6 +232,12 @@ object PlayerManager {
                     isPlaying.value = playing
                     updatePlaybackState()
                     showOrUpdateNotification()
+                    
+                    appContext?.let { ctx ->
+                        if (playing) {
+                            com.arcadesoftware.musix.PlaybackService.start(ctx)
+                        }
+                    }
                 }
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -381,39 +417,55 @@ object PlayerManager {
             val resolvedSong = when (item) {
                 is SongItem -> item
                 is PlaylistItem -> {
-                    android.util.Log.d(TAG, "Fetching playlist ${item.id} to play the first song")
+                    android.util.Log.d(TAG, "Fetching playlist ${item.id} — loading all songs into queue")
                     val result = YouTube.playlist(item.id)
-                    var song: SongItem? = null
+                    var firstSong: SongItem? = null
                     result.onSuccess { playlistPage ->
-                        song = playlistPage.songs.firstOrNull()
+                        val songs = playlistPage.songs
+                        if (songs.isNotEmpty()) {
+                            // Set the full playlist as the queue
+                            queue.value = songs
+                            currentQueueIndex.value = 0
+                            firstSong = songs.first()
+                        }
                     }.onFailure { e ->
                         android.util.Log.e(TAG, "Failed to load playlist: ${e.message}", e)
                     }
-                    song
+                    firstSong
                 }
                 is AlbumItem -> {
-                    android.util.Log.d(TAG, "Fetching album ${item.browseId} to play the first song")
+                    android.util.Log.d(TAG, "Fetching album ${item.browseId} — loading all songs into queue")
                     val result = YouTube.album(item.browseId)
-                    var song: SongItem? = null
+                    var firstSong: SongItem? = null
                     result.onSuccess { albumPage ->
-                        song = albumPage.songs.firstOrNull()
+                        val songs = albumPage.songs
+                        if (songs.isNotEmpty()) {
+                            queue.value = songs
+                            currentQueueIndex.value = 0
+                            firstSong = songs.first()
+                        }
                     }.onFailure { e ->
                         android.util.Log.e(TAG, "Failed to load album: ${e.message}", e)
                     }
-                    song
+                    firstSong
                 }
                 is ArtistItem -> {
-                    android.util.Log.d(TAG, "Resolving artist ${item.id} to play the first song")
+                    android.util.Log.d(TAG, "Resolving artist ${item.id} — loading radio into queue")
                     val endpoint = item.radioEndpoint ?: item.playEndpoint ?: item.shuffleEndpoint
                     if (endpoint != null) {
                         val result = YouTube.next(endpoint)
-                        var song: SongItem? = null
+                        var firstSong: SongItem? = null
                         result.onSuccess { nextResult ->
-                            song = nextResult.items.firstOrNull()
+                            val songs = nextResult.items
+                            if (songs.isNotEmpty()) {
+                                queue.value = songs
+                                currentQueueIndex.value = 0
+                                firstSong = songs.first()
+                            }
                         }.onFailure { e ->
                             android.util.Log.e(TAG, "Failed to load artist nextResult: ${e.message}", e)
                         }
-                        song
+                        firstSong
                     } else {
                         android.util.Log.e(TAG, "Artist has no playable endpoints")
                         null
@@ -633,6 +685,9 @@ object PlayerManager {
             val highResThumbnail = song.thumbnail.replace(Regex("w\\d+-h\\d+.*"), "w1080-h1080-l90-rj")
             scope.launch {
                 val context = appContext ?: return@launch
+                var bitmap: android.graphics.Bitmap? = null
+                
+                // Try high-res thumbnail first
                 try {
                     val loader = coil.ImageLoader(context)
                     val request = coil.request.ImageRequest.Builder(context)
@@ -642,25 +697,46 @@ object PlayerManager {
                     val result = loader.execute(request)
                     val drawable = result.drawable
                     if (drawable is android.graphics.drawable.BitmapDrawable) {
-                        val bitmap = drawable.bitmap
-                        withContext(Dispatchers.Main) {
-                            val activeSong = currentSong.value as? SongItem
-                            if (activeSong?.id == song.id) {
-                                currentMetadataBitmap = bitmap
-                                val meta = android.media.MediaMetadata.Builder()
-                                    .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, song.title)
-                                    .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, song.artists.joinToString { it.name })
-                                    .putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
-                                if (currentMetadataDuration > 0) {
-                                    meta.putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, currentMetadataDuration)
-                                }
-                                session.setMetadata(meta.build())
-                                showOrUpdateNotification(bitmap)
-                            }
-                        }
+                        bitmap = drawable.bitmap
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e(TAG, "Failed to load notification artwork: ${e.message}")
+                    android.util.Log.w(TAG, "Failed to load high-res artwork, trying fallback: ${e.message}")
+                }
+                
+                // Fallback to normal thumbnail if high-res failed
+                if (bitmap == null) {
+                    try {
+                        val loader = coil.ImageLoader(context)
+                        val request = coil.request.ImageRequest.Builder(context)
+                            .data(song.thumbnail)
+                            .allowHardware(false)
+                            .build()
+                        val result = loader.execute(request)
+                        val drawable = result.drawable
+                        if (drawable is android.graphics.drawable.BitmapDrawable) {
+                            bitmap = drawable.bitmap
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e(TAG, "Failed to load fallback artwork: ${e.message}")
+                    }
+                }
+                
+                bitmap?.let { b ->
+                    withContext(Dispatchers.Main) {
+                        val activeSong = currentSong.value as? SongItem
+                        if (activeSong?.id == song.id) {
+                            currentMetadataBitmap = b
+                            val meta = android.media.MediaMetadata.Builder()
+                                .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, song.title)
+                                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, song.artists.joinToString { it.name })
+                                .putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, b)
+                            if (currentMetadataDuration > 0) {
+                                meta.putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, currentMetadataDuration)
+                            }
+                            session.setMetadata(meta.build())
+                            showOrUpdateNotification(b)
+                        }
+                    }
                 }
             }
         }
@@ -701,6 +777,10 @@ object PlayerManager {
             context, 3, android.content.Intent(ACTION_NEXT),
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
+        val dismissIntent = android.app.PendingIntent.getBroadcast(
+            context, 5, android.content.Intent(ACTION_DISMISS),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
 
         val mainActivityIntent = android.content.Intent(context, MainActivity::class.java).apply {
             flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -720,11 +800,13 @@ object PlayerManager {
             .setContentText(song.artists.joinToString { it.name })
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(contentIntent)
+            .setDeleteIntent(dismissIntent)
             .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
             .setOngoing(isPlayingVal)
 
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon)
+        val bitmapToUse = largeIcon ?: currentMetadataBitmap
+        if (bitmapToUse != null) {
+            builder.setLargeIcon(bitmapToUse)
         }
 
         builder.addAction(
@@ -767,11 +849,20 @@ object PlayerManager {
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
                 android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU
             ) {
-                notificationManager.notify(1001, builder.build())
+                val notification = builder.build()
+                com.arcadesoftware.musix.PlaybackService.instance?.let { service ->
+                    service.updateForegroundNotification(notification, isPlayingVal)
+                } ?: run {
+                    notificationManager.notify(1001, notification)
+                }
             }
         } catch (e: Exception) {
             android.util.Log.e(TAG, "Failed to show notification: ${e.message}")
         }
+    }
+
+    fun triggerNotificationUpdate() {
+        showOrUpdateNotification()
     }
 }
 
@@ -780,6 +871,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Configure global Coil ImageLoader with disk and memory cache
+        try {
+            val imageLoader = coil.ImageLoader.Builder(applicationContext)
+                .memoryCache {
+                    coil.memory.MemoryCache.Builder(applicationContext)
+                        .maxSizePercent(0.25)
+                        .build()
+                }
+                .diskCache {
+                    coil.disk.DiskCache.Builder()
+                        .directory(cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(1024 * 1024 * 256) // 256 MB disk cache
+                        .build()
+                }
+                .build()
+            coil.Coil.setImageLoader(imageLoader)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Failed to configure Coil ImageLoader cache", e)
+        }
+
         setContent {
             MusixTheme {
                 MainScreen()

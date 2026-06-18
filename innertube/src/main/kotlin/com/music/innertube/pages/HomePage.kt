@@ -19,12 +19,12 @@ data class HomePage(
     val chips: List<Chip>?,
     val sections: List<Section>,
     val continuation: String? = null,
-) {
+) : java.io.Serializable {
     data class Chip(
         val title: String,
         val endpoint: BrowseEndpoint?,
         val deselectEndPoint: BrowseEndpoint?,
-    ) {
+    ) : java.io.Serializable {
         companion object {
             fun fromChipCloudChipRenderer(renderer: SectionListRenderer.Header.ChipCloudRenderer.Chip): Chip? {
                 return Chip(
@@ -42,7 +42,7 @@ data class HomePage(
         val thumbnail: String?,
         val endpoint: BrowseEndpoint?,
         val items: List<YTItem>,
-    ) {
+    ) : java.io.Serializable {
         companion object {
             fun fromMusicCarouselShelfRenderer(renderer: MusicCarouselShelfRenderer): Section? {
                 return Section(

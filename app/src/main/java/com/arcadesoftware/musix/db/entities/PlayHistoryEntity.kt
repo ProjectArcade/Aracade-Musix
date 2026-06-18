@@ -13,7 +13,7 @@ data class PlayHistoryEntity(
     val artistId: String?,
     val thumbnailUrl: String,
     val timestamp: Long = System.currentTimeMillis()
-) {
+) : java.io.Serializable {
     fun toSongItem(): SongItem {
         return SongItem(
             id = id,

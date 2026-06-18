@@ -7,7 +7,7 @@ import com.music.innertube.models.BrowseEndpoint.BrowseEndpointContextSupportedC
 import kotlinx.serialization.Serializable
 
 @Serializable
-sealed class Endpoint
+sealed class Endpoint : java.io.Serializable
 
 @Serializable
 data class WatchEndpoint(
@@ -22,11 +22,11 @@ data class WatchEndpoint(
     @Serializable
     data class WatchEndpointMusicSupportedConfigs(
         val watchEndpointMusicConfig: WatchEndpointMusicConfig,
-    ) {
+    ) : java.io.Serializable {
         @Serializable
         data class WatchEndpointMusicConfig(
             val musicVideoType: String,
-        ) {
+        ) : java.io.Serializable {
             companion object {
                 const val MUSIC_VIDEO_TYPE_OMV = "MUSIC_VIDEO_TYPE_OMV"
                 const val MUSIC_VIDEO_TYPE_UGC = "MUSIC_VIDEO_TYPE_UGC"
@@ -53,11 +53,11 @@ data class BrowseEndpoint(
     @Serializable
     data class BrowseEndpointContextSupportedConfigs(
         val browseEndpointContextMusicConfig: BrowseEndpointContextMusicConfig,
-    ) {
+    ) : java.io.Serializable {
         @Serializable
         data class BrowseEndpointContextMusicConfig(
             val pageType: String,
-        ) {
+        ) : java.io.Serializable {
             companion object {
                 const val MUSIC_PAGE_TYPE_ALBUM = "MUSIC_PAGE_TYPE_ALBUM"
                 const val MUSIC_PAGE_TYPE_AUDIOBOOK = "MUSIC_PAGE_TYPE_AUDIOBOOK"
@@ -92,7 +92,7 @@ data class QueueAddEndpoint(
     data class QueueTarget(
         val videoId: String? = null,
         val playlistId: String? = null,
-    )
+    ) : java.io.Serializable
 }
 
 @Serializable

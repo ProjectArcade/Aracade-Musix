@@ -2,7 +2,7 @@ package com.music.innertube.models
 
 import com.music.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_ATV
 
-sealed class YTItem {
+sealed class YTItem : java.io.Serializable {
     abstract val id: String
     abstract val title: String
     abstract val thumbnail: String?
@@ -13,12 +13,12 @@ sealed class YTItem {
 data class Artist(
     val name: String,
     val id: String?,
-)
+) : java.io.Serializable
 
 data class Album(
     val name: String,
     val id: String,
-)
+) : java.io.Serializable
 
 data class SongItem(
     override val id: String,

@@ -1059,8 +1059,8 @@ fun MainScreen() {
             ) {
                 when (selectedTab) {
                     0 -> HomeScreen()
-                    1 -> PlaylistScreen()
-                    2 -> PlaylistScreen()
+                    1 -> PlaylistScreen(backdrop = playlistBackdrop)
+                    2 -> PlaylistScreen(backdrop = playlistBackdrop)
                     3 -> RecommendationsScreen()
                 }
             }

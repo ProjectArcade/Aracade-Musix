@@ -91,7 +91,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistScreen(
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    backdrop: LayerBackdrop,
     viewModel: PlaylistViewModel = viewModel()
 ) {
     val downloadedSongs by viewModel.downloadedSongs.collectAsState()
@@ -103,7 +103,6 @@ fun PlaylistScreen(
     var likedSongIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val activePlaylistDetail by PlayerManager.activePlaylistDetail.collectAsState()
 
-    // Sheet states
     var optionsSong by remember { mutableStateOf<DownloadedSongEntity?>(null) }
     val optionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showAddToPlaylistForSong by remember { mutableStateOf<DownloadedSongEntity?>(null) }
@@ -111,7 +110,6 @@ fun PlaylistScreen(
     var newPlaylistNameInput by remember { mutableStateOf("") }
     var selectedUserPlaylist by remember { mutableStateOf<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null) }
 
-    // Refresh liked data when playlist detail closes
     LaunchedEffect(activePlaylistDetail) {
         if (activePlaylistDetail == null) {
             likedPlaylists = withContext(Dispatchers.IO) { LikedPlaylistsManager.getLikedPlaylists(context) }
@@ -126,7 +124,6 @@ fun PlaylistScreen(
                 .background(MaterialTheme.colorScheme.background),
             contentPadding = PaddingValues(bottom = 160.dp)
         ) {
-            // ── Header ──────────────────────────────────────────────────
             item {
                 Box(
                     modifier = Modifier
@@ -145,7 +142,6 @@ fun PlaylistScreen(
                 }
             }
 
-            // ── Quick Access Row: Liked Songs & Downloads ─────────────────
             item {
                 Row(
                     modifier = Modifier
@@ -160,7 +156,7 @@ fun PlaylistScreen(
                         defaultIcon = Icons.Rounded.Favorite,
                         iconContainerColor = Color(0xFFFEE2E2),
                         iconColor = Color(0xFFEF4444),
-                        onClick = { /* TODO open liked songs list */ }
+                        onClick = { }
                     )
                     PlaylistCard(
                         title = "Downloads",
@@ -169,13 +165,12 @@ fun PlaylistScreen(
                         defaultIcon = Icons.Rounded.DownloadDone,
                         iconContainerColor = Color(0xFFDCFCE7),
                         iconColor = Color(0xFF22C55E),
-                        onClick = { /* scroll handled by the list below */ }
+                        onClick = { }
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // ── Favorite Playlists & Albums ──────────────────────────────
             if (likedPlaylists.isNotEmpty()) {
                 item {
                     LibrarySectionHeader(title = "Favorite Playlists")
@@ -222,7 +217,6 @@ fun PlaylistScreen(
                 }
             }
 
-            // ── My Playlists section ─────────────────────────────────────
             item {
                 Row(
                     modifier = Modifier
@@ -300,7 +294,6 @@ fun PlaylistScreen(
 
             item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            // ── Downloaded Songs section ─────────────────────────────────
             item {
                 Row(
                     modifier = Modifier
@@ -425,7 +418,6 @@ fun PlaylistScreen(
         }
     }
 
-    // ── Song Options Bottom Sheet ────────────────────────────────────────
     optionsSong?.let { song ->
         ModalBottomSheet(
             onDismissRequest = { optionsSong = null },
@@ -433,7 +425,6 @@ fun PlaylistScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
         ) {
-            // Song header preview
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -467,8 +458,6 @@ fun PlaylistScreen(
             }
             HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp))
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Play option
             BottomSheetOption(
                 icon = Icons.Rounded.PlayArrow,
                 label = "Play Now",
@@ -481,7 +470,6 @@ fun PlaylistScreen(
                     }
                 }
             )
-            // Add to queue
             BottomSheetOption(
                 icon = Icons.Rounded.AddToQueue,
                 label = "Add to Queue",
@@ -492,7 +480,6 @@ fun PlaylistScreen(
                     PlayerManager.queue.value = current
                 }
             )
-            // Add to playlist
             BottomSheetOption(
                 icon = Icons.Rounded.PlaylistAdd,
                 label = "Add to Playlist",
@@ -501,7 +488,6 @@ fun PlaylistScreen(
                     optionsSong = null
                 }
             )
-            // Delete
             BottomSheetOption(
                 icon = Icons.Rounded.Delete,
                 label = "Remove Download",
@@ -515,7 +501,6 @@ fun PlaylistScreen(
         }
     }
 
-    // ── New Playlist Dialog ───────────────────────────────────────────────────
     if (showNewPlaylistDialog) {
         var dialogName by remember { mutableStateOf("") }
         AlertDialog(
@@ -551,7 +536,6 @@ fun PlaylistScreen(
         )
     }
 
-    // ── Add to Playlist Sheet (from MoreVert) ─────────────────────────────────
     showAddToPlaylistForSong?.let { song ->
         com.arcadesoftware.musix.components.AddToPlaylistSheet(
             song = song.toSongItem(),
@@ -559,11 +543,10 @@ fun PlaylistScreen(
         )
     }
 
-    // ── User Playlist Detail Overlay ──────────────────────────────────────────
-    androidx.compose.animation.AnimatedVisibility(
+    AnimatedVisibility(
         visible = selectedUserPlaylist != null,
-        enter = androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }),
-        exit = androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }),
+        enter = slideInHorizontally(initialOffsetX = { it }),
+        exit = slideOutHorizontally(targetOffsetX = { it }),
         modifier = Modifier.fillMaxSize()
     ) {
         selectedUserPlaylist?.let { playlist ->
@@ -581,7 +564,7 @@ fun PlaylistScreen(
 @Composable
 private fun UserPlaylistDetailScreen(
     playlist: com.arcadesoftware.musix.db.entities.PlaylistEntity,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    backdrop: LayerBackdrop,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -597,7 +580,6 @@ private fun UserPlaylistDetailScreen(
         }
     }
 
-    // Pick the best thumbnail for ambient background
     val currentSong by PlayerManager.currentSong.collectAsState()
     val ambientThumbnail = if (currentSong != null && songs.any { it.id == currentSong?.id }) {
         currentSong?.thumbnail
@@ -617,15 +599,9 @@ private fun UserPlaylistDetailScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Backdrop layer (only if backdrop passed)
-        val boxMod = if (backdrop != null) {
-            Modifier.fillMaxSize().layerBackdrop(backdrop)
-        } else {
-            Modifier.fillMaxSize()
-        }
+        val boxMod = Modifier.fillMaxSize().layerBackdrop(backdrop)
 
         Box(modifier = boxMod) {
-            // Ambient blurred cover background
             if (!ambientThumbnail.isNullOrEmpty()) {
                 AsyncImage(
                     model = ambientThumbnail,
@@ -635,7 +611,7 @@ private fun UserPlaylistDetailScreen(
                 )
                 Box(
                     modifier = Modifier.fillMaxSize().background(
-                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
@@ -651,13 +627,11 @@ private fun UserPlaylistDetailScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 96.dp, bottom = 160.dp)
             ) {
-                // Centered artwork + metadata (Apple Music style)
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
                     ) {
-                        // Mosaic / single artwork
                         Box(
                             modifier = Modifier
                                 .size(220.dp)
@@ -697,9 +671,12 @@ private fun UserPlaylistDetailScreen(
                                 )
                             } else {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Rounded.QueueMusic, contentDescription = null,
+                                    Icon(
+                                        Icons.Rounded.QueueMusic,
+                                        contentDescription = null,
                                         modifier = Modifier.size(80.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.4f))
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.4f)
+                                    )
                                 }
                             }
                         }
@@ -722,7 +699,6 @@ private fun UserPlaylistDetailScreen(
                     }
                 }
 
-                // Play & Shuffle buttons (Cupertino style pills)
                 if (songs.isNotEmpty()) {
                     item {
                         Row(
@@ -771,14 +747,19 @@ private fun UserPlaylistDetailScreen(
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Rounded.PlaylistAdd, contentDescription = null,
+                                Icon(
+                                    Icons.Rounded.PlaylistAdd,
+                                    contentDescription = null,
                                     modifier = Modifier.size(56.dp),
-                                    tint = MaterialTheme.colorScheme.onSurface.copy(0.3f))
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(0.3f)
+                                )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("No songs yet", color = MaterialTheme.colorScheme.onSurface.copy(0.5f))
-                                Text("Add songs using the + button in the player",
+                                Text(
+                                    "Add songs using the + button in the player",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(0.35f))
+                                    color = MaterialTheme.colorScheme.onSurface.copy(0.35f)
+                                )
                             }
                         }
                     }
@@ -786,7 +767,7 @@ private fun UserPlaylistDetailScreen(
 
                 itemsIndexed(songs) { index, songEntity ->
                     val isPlaying = PlayerManager.currentSong.collectAsState().value?.id == songEntity.id
-                    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
                     Row(
                         modifier = Modifier
@@ -837,8 +818,12 @@ private fun UserPlaylistDetailScreen(
                                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = "Playing",
-                                        tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.VolumeUp,
+                                        contentDescription = "Playing",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
@@ -866,9 +851,12 @@ private fun UserPlaylistDetailScreen(
                             },
                             modifier = Modifier.size(36.dp)
                         ) {
-                            Icon(Icons.Rounded.MoreHoriz, contentDescription = "Options",
+                            Icon(
+                                Icons.Rounded.MoreHoriz,
+                                contentDescription = "Options",
                                 tint = MaterialTheme.colorScheme.onSurface.copy(0.35f),
-                                modifier = Modifier.size(20.dp))
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                     if (index < songs.size - 1) {
@@ -882,7 +870,7 @@ private fun UserPlaylistDetailScreen(
             }
         }
 
-        // Floating Liquid glass capsule bar (Back + title + heart)
+        // ── Top bar: all three buttons always use LiquidButton ──────────────
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -893,79 +881,67 @@ private fun UserPlaylistDetailScreen(
         ) {
             // Back button
             Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                if (backdrop != null) {
-                    LiquidButton(
-                        onClick = onBack,
-                        backdrop = backdrop,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back",
-                            tint = appleRed, modifier = Modifier.size(22.dp))
-                    }
-                } else {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(48.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface.copy(0.8f))
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back",
-                            tint = appleRed, modifier = Modifier.size(22.dp))
-                    }
+                LiquidButton(
+                    onClick = onBack,
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = appleRed,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
 
-            // Mini title (appears when scrolled)
+            // Mini title pill (appears when scrolled)
             Box(
                 modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.animation.AnimatedVisibility(
+                AnimatedVisibility(
                     visible = showMiniTitle,
                     enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
                     exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
                 ) {
-                    if (backdrop != null) {
-                        LiquidButton(
-                            onClick = {},
-                            backdrop = backdrop,
-                            isInteractive = false,
-                            surfaceColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
-                            modifier = Modifier.wrapContentWidth()
-                        ) {
-                            Text(text = playlist.name,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onBackground)
-                        }
+                    LiquidButton(
+                        onClick = {},
+                        backdrop = backdrop,
+                        isInteractive = false,
+                        surfaceColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                        modifier = Modifier.wrapContentWidth()
+                    ) {
+                        Text(
+                            text = playlist.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
                     }
                 }
             }
 
-            // Heart/like placeholder (no YT id, so show a playlist icon)
+            // Playlist icon button
             Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                if (backdrop != null) {
-                    LiquidButton(
-                        onClick = { /* Could add playlist-level favourite */ },
-                        backdrop = backdrop,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(Icons.Rounded.QueueMusic, contentDescription = "Playlist",
-                            tint = appleRed, modifier = Modifier.size(20.dp))
-                    }
-                } else {
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.size(48.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface.copy(0.8f))
-                    ) {
-                        Icon(Icons.Rounded.QueueMusic, contentDescription = "Playlist",
-                            tint = appleRed, modifier = Modifier.size(20.dp))
-                    }
+                LiquidButton(
+                    onClick = { },
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.QueueMusic,
+                        contentDescription = "Playlist",
+                        tint = appleRed,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
     }
 }
+
 
 // ─── Reusable composables ────────────────────────────────────────────────────
 
@@ -1125,7 +1101,6 @@ private fun DownloadedSongRow(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Playing indicator / index number
             Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
                 if (isCurrentlyPlaying) {
                     MusicBarsAnimation()
@@ -1139,7 +1114,6 @@ private fun DownloadedSongRow(
             }
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Thumbnail with green downloaded badge
             Box(modifier = Modifier.size(52.dp)) {
                 AsyncImage(
                     model = songEntity.thumbnailUrl,
@@ -1150,7 +1124,6 @@ private fun DownloadedSongRow(
                         .clip(RoundedCornerShape(10.dp))
                         .shadow(2.dp, RoundedCornerShape(10.dp))
                 )
-                // Green circle tick badge (bottom-right)
                 if (!isDownloading) {
                     Box(
                         modifier = Modifier
@@ -1168,7 +1141,6 @@ private fun DownloadedSongRow(
                         )
                     }
                 } else {
-                    // Download in progress ring
                     Box(
                         modifier = Modifier
                             .size(20.dp)
@@ -1187,7 +1159,6 @@ private fun DownloadedSongRow(
             }
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Title + artist
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     songEntity.title,
@@ -1207,7 +1178,6 @@ private fun DownloadedSongRow(
                 )
             }
 
-            // More options
             IconButton(onClick = onMoreClick, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Rounded.MoreVert,

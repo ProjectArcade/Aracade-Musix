@@ -72,7 +72,9 @@ fun RecommendationsScreen(viewModel: HomeViewModel = viewModel()) {
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),

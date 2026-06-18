@@ -392,7 +392,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                                         text = "Because you listened to ${recommendation.seed.title}",
                                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                        color = MaterialTheme.colorScheme.onBackground
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     LazyRow(
                                         contentPadding = PaddingValues(horizontal = 16.dp),

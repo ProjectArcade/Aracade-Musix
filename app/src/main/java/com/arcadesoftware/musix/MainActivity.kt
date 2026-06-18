@@ -45,8 +45,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 object PlayerManager {
+    private const val ACTION_PLAY = "com.arcadesoftware.musix.ACTION_PLAY"
+    private const val ACTION_PAUSE = "com.arcadesoftware.musix.ACTION_PAUSE"
+    private const val ACTION_PREVIOUS = "com.arcadesoftware.musix.ACTION_PREVIOUS"
+    private const val ACTION_NEXT = "com.arcadesoftware.musix.ACTION_NEXT"
+
     val currentSong = MutableStateFlow<YTItem?>(null)
     val isPlaying = MutableStateFlow(false)
+    val currentPosition = MutableStateFlow(0L)
+    val currentDuration = MutableStateFlow(0L)
+    private var appContext: android.content.Context? = null
     var exoPlayer: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -94,6 +102,33 @@ object PlayerManager {
 
     fun init(context: android.content.Context) {
         if (exoPlayer == null) {
+            appContext = context.applicationContext
+
+            // Register receiver for notification actions
+            val filter = android.content.IntentFilter().apply {
+                addAction(ACTION_PLAY)
+                addAction(ACTION_PAUSE)
+                addAction(ACTION_PREVIOUS)
+                addAction(ACTION_NEXT)
+            }
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                    when (intent.action) {
+                        ACTION_PLAY -> exoPlayer?.play()
+                        ACTION_PAUSE -> exoPlayer?.pause()
+                        ACTION_PREVIOUS -> exoPlayer?.seekTo(0)
+                        ACTION_NEXT -> {}
+                    }
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(receiver, filter)
+            }
+
+            startProgressUpdates()
+
             scope.launch {
                 if (YouTube.visitorData == null) {
                     android.util.Log.d(TAG, "Initializing guest session visitorData...")
@@ -126,6 +161,7 @@ object PlayerManager {
             exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying.value = playing
+                    showOrUpdateNotification()
                 }
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -137,6 +173,7 @@ object PlayerManager {
                         else -> "UNKNOWN"
                     }
                     android.util.Log.d(TAG, "ExoPlayer state changed: $stateStr")
+                    showOrUpdateNotification()
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -201,6 +238,7 @@ object PlayerManager {
 
             withContext(Dispatchers.Main) {
                 currentSong.value = resolvedSong
+                showOrUpdateNotification()
             }
 
             val videoId = resolvedSong.id
@@ -270,6 +308,7 @@ object PlayerManager {
                     exoPlayer?.setMediaItem(MediaItem.fromUri(streamUrl!!))
                     exoPlayer?.prepare()
                     exoPlayer?.play()
+                    showOrUpdateNotification()
                 }
             } else {
                 android.util.Log.e(TAG, "All clients failed for videoId=$videoId")
@@ -280,6 +319,135 @@ object PlayerManager {
     fun togglePlayPause() {
         exoPlayer?.let { player ->
             if (player.isPlaying) player.pause() else player.play()
+        }
+    }
+
+    private fun startProgressUpdates() {
+        scope.launch {
+            while (true) {
+                withContext(Dispatchers.Main) {
+                    exoPlayer?.let { player ->
+                        if (player.isPlaying || player.playbackState == androidx.media3.common.Player.STATE_READY) {
+                            currentPosition.value = player.currentPosition
+                            currentDuration.value = player.duration.coerceAtLeast(0L)
+                        }
+                    }
+                }
+                kotlinx.coroutines.delay(500)
+            }
+        }
+    }
+
+    fun seekTo(fraction: Float) {
+        exoPlayer?.let { player ->
+            val duration = player.duration
+            if (duration > 0) {
+                val position = (duration * fraction).toLong()
+                player.seekTo(position)
+                currentPosition.value = position
+            }
+        }
+    }
+
+    private fun showOrUpdateNotification() {
+        val context = appContext ?: return
+        val song = currentSong.value as? SongItem ?: return
+        val isPlayingVal = isPlaying.value
+
+        val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                "music_playback",
+                "Music Playback",
+                android.app.NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Controls for music playback"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val playIntent = android.app.PendingIntent.getBroadcast(
+            context, 0, android.content.Intent(ACTION_PLAY),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val pauseIntent = android.app.PendingIntent.getBroadcast(
+            context, 1, android.content.Intent(ACTION_PAUSE),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val prevIntent = android.app.PendingIntent.getBroadcast(
+            context, 2, android.content.Intent(ACTION_PREVIOUS),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val nextIntent = android.app.PendingIntent.getBroadcast(
+            context, 3, android.content.Intent(ACTION_NEXT),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val mainActivityIntent = android.content.Intent(context, MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val contentIntent = android.app.PendingIntent.getActivity(
+            context, 4, mainActivityIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.Notification.Builder(context, "music_playback")
+        } else {
+            android.app.Notification.Builder(context)
+        }
+
+        builder.setContentTitle(song.title)
+            .setContentText(song.artists.joinToString { it.name })
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentIntent(contentIntent)
+            .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
+            .setOngoing(isPlayingVal)
+
+        builder.addAction(
+            android.app.Notification.Action.Builder(
+                android.R.drawable.ic_media_previous, "Previous", prevIntent
+            ).build()
+        )
+        if (isPlayingVal) {
+            builder.addAction(
+                android.app.Notification.Action.Builder(
+                    android.R.drawable.ic_media_pause, "Pause", pauseIntent
+                ).build()
+            )
+        } else {
+            builder.addAction(
+                android.app.Notification.Action.Builder(
+                    android.R.drawable.ic_media_play, "Play", playIntent
+                ).build()
+            )
+        }
+        builder.addAction(
+            android.app.Notification.Action.Builder(
+                android.R.drawable.ic_media_next, "Next", nextIntent
+            ).build()
+        )
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            builder.setStyle(
+                android.app.Notification.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2)
+            )
+        }
+
+        try {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU
+            ) {
+                notificationManager.notify(1001, builder.build())
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to show notification: ${e.message}")
         }
     }
 }
@@ -302,9 +470,18 @@ fun MainScreen() {
     val backdrop = rememberLayerBackdrop()
     val context = LocalContext.current
     val currentSong by PlayerManager.currentSong.collectAsState()
+
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        android.util.Log.d("MainScreen", "POST_NOTIFICATIONS permission granted: $isGranted")
+    }
     
     LaunchedEffect(Unit) {
         PlayerManager.init(context.applicationContext)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         MusixUpdater.checkForUpdate(
             context = context,
             onUpdateFound = { version, description, apkUrl ->
@@ -559,13 +736,16 @@ fun MiniPlayer(backdrop: com.kyant.backdrop.Backdrop, currentSong: YTItem?, modi
                         Icon(Icons.Rounded.FavoriteBorder, contentDescription = "Like", tint = contentColor, modifier = Modifier.size(32.dp).then(consumeClicksModifier))
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    var sliderValue by remember { mutableStateOf(0.3f) }
+                    val currentPosition by PlayerManager.currentPosition.collectAsState()
+                    val currentDuration by PlayerManager.currentDuration.collectAsState()
+                    val sliderValue = if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f
+
                     val sliderConsumeGesture = Modifier.pointerInput(Unit) {
                         detectVerticalDragGestures { _, _ -> }
                     }
                     com.arcadesoftware.musix.components.LiquidSlider(
                         value = { sliderValue },
-                        onValueChange = { sliderValue = it },
+                        onValueChange = { PlayerManager.seekTo(it) },
                         valueRange = 0f..1f,
                         visibilityThreshold = 0.001f,
                         backdrop = backdrop,

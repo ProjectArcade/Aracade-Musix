@@ -577,7 +577,27 @@ private fun UserPlaylistDetailScreen(
     var editCoverUri by remember(playlist.coverUri) { mutableStateOf(playlist.coverUri) }
     val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
-    ) { uri -> if (uri != null) editCoverUri = uri.toString() }
+    ) { uri -> 
+        if (uri != null) {
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val file = java.io.File(context.filesDir, "playlist_cover_${playlist.id}_${System.currentTimeMillis()}.jpg")
+                    inputStream?.use { input ->
+                        file.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    val localUri = android.net.Uri.fromFile(file).toString()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        editCoverUri = localUri
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val showMiniTitle by remember {

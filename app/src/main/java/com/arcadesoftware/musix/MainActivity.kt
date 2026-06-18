@@ -175,7 +175,7 @@ object PlayerManager {
                     override fun onSeekTo(pos: Long) {
                         exoPlayer?.seekTo(pos)
                         currentPosition.value = pos
-                        updatePlaybackState()
+                        updatePlaybackState(pos)
                     }
                 })
             }
@@ -719,12 +719,12 @@ object PlayerManager {
                 val position = (duration * fraction).toLong()
                 player.seekTo(position)
                 currentPosition.value = position
-                updatePlaybackState()
+                updatePlaybackState(position)
             }
         }
     }
 
-    private fun updatePlaybackState() {
+    private fun updatePlaybackState(overridePosition: Long? = null) {
         val session = mediaSession ?: return
         val player = exoPlayer ?: return
         val song = currentSong.value as? SongItem ?: return
@@ -751,14 +751,18 @@ object PlayerManager {
             session.setMetadata(metadataBuilder.build())
         }
 
+        val position = overridePosition ?: player.currentPosition
+
         val playbackState = android.media.session.PlaybackState.Builder()
-            .setState(state, player.currentPosition, 1.0f)
+            .setState(state, position, 1.0f)
             .setActions(
                 android.media.session.PlaybackState.ACTION_PLAY or
                         android.media.session.PlaybackState.ACTION_PAUSE or
                         android.media.session.PlaybackState.ACTION_SEEK_TO or
                         android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT or
-                        android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                        android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                        android.media.session.PlaybackState.ACTION_FAST_FORWARD or
+                        android.media.session.PlaybackState.ACTION_REWIND
             )
             .build()
 

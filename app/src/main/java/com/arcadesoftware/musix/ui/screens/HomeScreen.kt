@@ -474,11 +474,13 @@ fun SwipeableCardStack(
     if (items.isEmpty()) return
 
     var currentIndex by remember { mutableStateOf(0) }
-    val activeIndex = currentIndex % items.size
+    // Safe modulo for positive and negative index values
+    val activeIndex = ((currentIndex % items.size) + items.size) % items.size
     val coroutineScope = rememberCoroutineScope()
     
     val swipeX = remember { Animatable(0f) }
     val swipeY = remember { Animatable(0f) }
+    val isSwipingRight = swipeX.value > 0f
 
     Box(
         modifier = modifier
@@ -488,8 +490,16 @@ fun SwipeableCardStack(
     ) {
         // Show up to 3 cards in the stack
         for (i in 2 downTo 0) {
-            val cardIndex = (activeIndex + i) % items.size
             val isTopCard = i == 0
+            val cardIndex = if (isTopCard) {
+                activeIndex
+            } else {
+                if (isSwipingRight) {
+                    ((activeIndex - i) % items.size + items.size) % items.size
+                } else {
+                    (activeIndex + i) % items.size
+                }
+            }
 
             // Background card styling for stack depth
             val scale = when (i) {
@@ -541,8 +551,12 @@ fun SwipeableCardStack(
                                         animJob1.join()
                                         animJob2.join()
                                         
-                                        // Advance index and reset positions instantly
-                                        currentIndex++
+                                        // Swipe right (targetX > 0) goes to previous card, swipe left (targetX < 0) goes to next card
+                                        if (targetX > 0) {
+                                            currentIndex--
+                                        } else {
+                                            currentIndex++
+                                        }
                                         swipeX.snapTo(0f)
                                         swipeY.snapTo(0f)
                                     } else {

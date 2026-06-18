@@ -559,8 +559,7 @@ fun PlaylistDetailScreen(
                 LiquidButton(
                     onClick = onBack,
                     backdrop = backdrop,
-                    modifier = Modifier.size(48.dp),
-                    contentPadding = PaddingValues(0.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -628,8 +627,7 @@ fun PlaylistDetailScreen(
                         }
                     },
                     backdrop = backdrop,
-                    modifier = Modifier.size(48.dp),
-                    contentPadding = PaddingValues(0.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,

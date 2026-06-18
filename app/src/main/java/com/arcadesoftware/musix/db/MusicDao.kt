@@ -61,6 +61,9 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM playlist_songs WHERE playlistId = :playlistId")
     fun getSongCountForPlaylist(playlistId: Long): Flow<Int>
 
+    @Query("UPDATE playlists SET name = :name, coverUri = :coverUri WHERE id = :id")
+    fun updatePlaylist(id: Long, name: String, coverUri: String?)
+
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     fun deletePlaylist(playlistId: Long)
 

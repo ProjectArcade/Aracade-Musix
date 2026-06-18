@@ -1522,15 +1522,33 @@ fun MiniPlayer(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Drag handle at the top
+                    // Drag handle at the top — tappable + swipeable to collapse
                     Box(
                         modifier = Modifier
-                            .width(40.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(contentColor.copy(alpha = 0.3f))
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
+                            .padding(vertical = 12.dp)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onVerticalDrag = { _, dragAmount ->
+                                        if (dragAmount > 8f) expanded = false
+                                    }
+                                )
+                            }
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) { expanded = false }
+                            .padding(horizontal = 40.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(contentColor.copy(alpha = 0.3f))
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Album art / Lyrics Box
                     Box(
@@ -1697,10 +1715,6 @@ fun MiniPlayer(
                     val sliderValue = sliderDragValue
                         ?: (if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f)
 
-                    val sliderConsumeGesture = Modifier.pointerInput(Unit) {
-                        detectVerticalDragGestures { _, _ -> }
-                    }
-
                     key(Unit) {
                         com.arcadesoftware.musix.components.LiquidSlider(
                             value = { sliderValue },
@@ -1713,7 +1727,7 @@ fun MiniPlayer(
                             visibilityThreshold = 0.001f,
                             backdrop = backdrop,
                             accentColor = contentColor,
-                            modifier = Modifier.fillMaxWidth().then(sliderConsumeGesture)
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
@@ -1752,29 +1766,61 @@ fun MiniPlayer(
                             contentDescription = "Previous",
                             tint = contentColor,
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(40.dp)
                                 .clickable(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null
                                 ) { PlayerManager.playPrevious() }
                         )
+                        // 10 sec backward
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    val pos = PlayerManager.currentPosition.value
+                                    val dur = PlayerManager.currentDuration.value
+                                    if (dur > 0) PlayerManager.seekTo(((pos - 10_000L).coerceAtLeast(0L).toFloat() / dur).coerceIn(0f, 1f))
+                                }
+                        ) {
+                            Icon(Icons.Rounded.Replay10, contentDescription = "-10s", tint = contentColor, modifier = Modifier.fillMaxSize())
+                        }
                         Icon(
                             playPauseIcon,
                             contentDescription = "Play/Pause",
                             tint = contentColor,
                             modifier = Modifier
-                                .size(72.dp)
+                                .size(64.dp)
                                 .clickable(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null
                                 ) { PlayerManager.togglePlayPause() }
                         )
+                        // 10 sec forward
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    val pos = PlayerManager.currentPosition.value
+                                    val dur = PlayerManager.currentDuration.value
+                                    if (dur > 0) PlayerManager.seekTo(((pos + 10_000L).coerceAtMost(dur).toFloat() / dur).coerceIn(0f, 1f))
+                                }
+                        ) {
+                            Icon(Icons.Rounded.Forward10, contentDescription = "+10s", tint = contentColor, modifier = Modifier.fillMaxSize())
+                        }
                         Icon(
                             Icons.Rounded.SkipNext,
                             contentDescription = "Next",
                             tint = contentColor,
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(40.dp)
                                 .clickable(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null

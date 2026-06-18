@@ -108,7 +108,7 @@ fun PlaylistScreen(
     var showAddToPlaylistForSong by remember { mutableStateOf<DownloadedSongEntity?>(null) }
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
-    var selectedUserPlaylist by remember { mutableStateOf<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null) }
+    val selectedUserPlaylist by PlayerManager.activeUserPlaylist.collectAsState()
 
     LaunchedEffect(activePlaylistDetail) {
         if (activePlaylistDetail == null) {
@@ -284,7 +284,7 @@ fun PlaylistScreen(
                         items(userPlaylists, key = { it.id }) { playlist ->
                             UserPlaylistCard(
                                 playlist = playlist,
-                                onClick = { selectedUserPlaylist = playlist },
+                                onClick = { PlayerManager.activeUserPlaylist.value = playlist },
                                 onDeleteClick = { viewModel.deletePlaylist(playlist.id) }
                             )
                         }
@@ -553,7 +553,7 @@ fun PlaylistScreen(
             UserPlaylistDetailScreen(
                 playlist = playlist,
                 backdrop = backdrop,
-                onBack = { selectedUserPlaylist = null }
+                onBack = { PlayerManager.activeUserPlaylist.value = null }
             )
         }
     }
@@ -572,6 +572,12 @@ private fun UserPlaylistDetailScreen(
     val songs by db.musicDao().getSongsForPlaylist(playlist.id).collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val appleRed = Color(0xFFFA243C)
+    var showEditSheet by remember { mutableStateOf(false) }
+    var editName by remember(playlist.name) { mutableStateOf(playlist.name) }
+    var editCoverUri by remember(playlist.coverUri) { mutableStateOf(playlist.coverUri) }
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) editCoverUri = uri.toString() }
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val showMiniTitle by remember {
@@ -599,9 +605,7 @@ private fun UserPlaylistDetailScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val boxMod = Modifier.fillMaxSize().layerBackdrop(backdrop)
-
-        Box(modifier = boxMod) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             if (!ambientThumbnail.isNullOrEmpty()) {
                 AsyncImage(
                     model = ambientThumbnail,
@@ -639,7 +643,14 @@ private fun UserPlaylistDetailScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
-                            if (songs.size >= 4) {
+                            if (playlist.coverUri != null) {
+                                AsyncImage(
+                                    model = playlist.coverUri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (songs.size >= 4) {
                                 Column(modifier = Modifier.fillMaxSize()) {
                                     Row(modifier = Modifier.weight(1f)) {
                                         listOf(songs[0], songs[1]).forEach { s ->
@@ -669,7 +680,7 @@ private fun UserPlaylistDetailScreen(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
-                            } else {
+                            } else if (songs.isEmpty()) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.Rounded.QueueMusic,
@@ -870,6 +881,90 @@ private fun UserPlaylistDetailScreen(
             }
         }
 
+        // ── Edit Playlist Sheet ──────────────────────────────────────────────
+        if (showEditSheet) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showEditSheet = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        "Edit Playlist",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    // Thumbnail picker
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { imagePickerLauncher.launch("image/*") }
+                            .align(Alignment.CenterHorizontally),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (editCoverUri != null) {
+                            AsyncImage(
+                                model = editCoverUri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (songs.isNotEmpty()) {
+                            AsyncImage(
+                                model = songs.first().thumbnailUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().alpha(0.5f)
+                            )
+                        }
+                        Icon(
+                            Icons.Rounded.CameraAlt,
+                            contentDescription = "Pick image",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(0.7f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    // Name field
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Playlist name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            onClick = { showEditSheet = false },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Cancel") }
+                        Button(
+                            onClick = {
+                                scope.launch(Dispatchers.IO) {
+                                    db.musicDao().updatePlaylist(playlist.id, editName.trim(), editCoverUri)
+                                }
+                                showEditSheet = false
+                            },
+                            enabled = editName.isNotBlank(),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Save") }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+
         // ── Top bar: all three buttons always use LiquidButton ──────────────
         Box(
             modifier = Modifier
@@ -910,11 +1005,11 @@ private fun UserPlaylistDetailScreen(
                         backdrop = backdrop,
                         isInteractive = false,
                         surfaceColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
-                        modifier = Modifier.wrapContentWidth()
+                        modifier = Modifier.height(48.dp).widthIn(min = 120.dp, max = 220.dp)
                     ) {
                         Text(
                             text = playlist.name,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             color = MaterialTheme.colorScheme.onBackground
@@ -926,13 +1021,13 @@ private fun UserPlaylistDetailScreen(
             // Playlist icon button
             Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                 LiquidButton(
-                    onClick = { },
+                    onClick = { showEditSheet = true },
                     backdrop = backdrop,
                     modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
-                        Icons.Rounded.QueueMusic,
-                        contentDescription = "Playlist",
+                        Icons.Rounded.Edit,
+                        contentDescription = "Edit Playlist",
                         tint = appleRed,
                         modifier = Modifier.size(20.dp)
                     )
@@ -941,6 +1036,7 @@ private fun UserPlaylistDetailScreen(
         }
     }
 }
+
 
 
 // ─── Reusable composables ────────────────────────────────────────────────────
@@ -1051,15 +1147,8 @@ private fun UserPlaylistCard(
     val songs by db.musicDao().getSongsForPlaylist(playlist.id).collectAsState(initial = emptyList())
     val currentSong by PlayerManager.currentSong.collectAsState()
 
-    val isPlayingAnySongInPlaylist = currentSong != null && songs.any { it.id == currentSong?.id }
-
-    val thumbnail = if (isPlayingAnySongInPlaylist && currentSong?.thumbnail != null) {
-        currentSong?.thumbnail
-    } else if (songs.isNotEmpty()) {
-        songs.first().thumbnailUrl
-    } else {
-        null
-    }
+    val thumbnail = playlist.coverUri
+        ?: if (songs.isNotEmpty()) songs.first().thumbnailUrl else null
 
     PlaylistCard(
         title = playlist.name,

@@ -262,56 +262,22 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = viewModel()) {
                     }
                 }
             } else {
-                items(userPlaylists, key = { it.id }) { playlist ->
-                    Row(
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedUserPlaylist = playlist }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(bottom = 24.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Rounded.QueueMusic,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                playlist.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                            Text(
-                                "Playlist",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
-                            Icon(
-                                Icons.Rounded.Delete,
-                                contentDescription = "Delete playlist",
-                                tint = MaterialTheme.colorScheme.onSurface.copy(0.35f),
-                                modifier = Modifier.size(20.dp)
+                        items(userPlaylists, key = { it.id }) { playlist ->
+                            UserPlaylistCard(
+                                playlist = playlist,
+                                onClick = { selectedUserPlaylist = playlist },
+                                onDeleteClick = { viewModel.deletePlaylist(playlist.id) }
                             )
                         }
                     }
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 84.dp, end = 20.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f),
-                        thickness = 0.5.dp
-                    )
                 }
             }
 
@@ -416,14 +382,6 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = viewModel()) {
                     },
                     onMoreClick = { optionsSong = songEntity }
                 )
-
-                if (index < downloadedSongs.size - 1) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 84.dp, end = 20.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f),
-                        thickness = 0.5.dp
-                    )
-                }
             }
         }
     }
@@ -939,7 +897,8 @@ private fun PlaylistCard(
     title: String,
     subtitle: String,
     thumbnail: String?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -953,12 +912,45 @@ private fun PlaylistCard(
                 .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            AsyncImage(
-                model = thumbnail ?: "",
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (thumbnail != null) {
+                AsyncImage(
+                    model = thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.primary.copy(0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.QueueMusic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            if (onDeleteClick != null) {
+                IconButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .background(Color.Black.copy(0.5f), CircleShape)
+                ) {
+                    Icon(
+                        Icons.Rounded.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -980,6 +972,36 @@ private fun PlaylistCard(
 }
 
 @Composable
+private fun UserPlaylistCard(
+    playlist: com.arcadesoftware.musix.db.entities.PlaylistEntity,
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val db = remember(context) { AppDatabase.getDatabase(context) }
+    val songs by db.musicDao().getSongsForPlaylist(playlist.id).collectAsState(initial = emptyList())
+    val currentSong by PlayerManager.currentSong.collectAsState()
+
+    val isPlayingAnySongInPlaylist = currentSong != null && songs.any { it.id == currentSong?.id }
+
+    val thumbnail = if (isPlayingAnySongInPlaylist && currentSong?.thumbnail != null) {
+        currentSong?.thumbnail
+    } else if (songs.isNotEmpty()) {
+        songs.first().thumbnailUrl
+    } else {
+        null
+    }
+
+    PlaylistCard(
+        title = playlist.name,
+        subtitle = "${songs.size} songs",
+        thumbnail = thumbnail,
+        onClick = onClick,
+        onDeleteClick = onDeleteClick
+    )
+}
+
+@Composable
 private fun DownloadedSongRow(
     songEntity: DownloadedSongEntity,
     index: Int,
@@ -989,107 +1011,118 @@ private fun DownloadedSongRow(
     onClick: () -> Unit,
     onMoreClick: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(
-                if (isCurrentlyPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
-                else Color.Transparent
-            )
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Playing indicator / index number
-        Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
-            if (isCurrentlyPlaying) {
-                MusicBarsAnimation()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCurrentlyPlaying) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
             } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Playing indicator / index number
+            Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+                if (isCurrentlyPlaying) {
+                    MusicBarsAnimation()
+                } else {
+                    Text(
+                        "${index + 1}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(0.4f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Thumbnail with green downloaded badge
+            Box(modifier = Modifier.size(52.dp)) {
+                AsyncImage(
+                    model = songEntity.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(10.dp))
+                        .shadow(2.dp, RoundedCornerShape(10.dp))
+                )
+                // Green circle tick badge (bottom-right)
+                if (!isDownloading) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .align(Alignment.BottomEnd)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22C55E)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = "Downloaded",
+                            tint = Color.White,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+                } else {
+                    // Download in progress ring
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.BottomEnd),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.fillMaxSize(),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF22C55E),
+                            trackColor = Color(0xFF22C55E).copy(alpha = 0.2f)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Title + artist
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${index + 1}",
+                    songEntity.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrentlyPlaying) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isCurrentlyPlaying) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    songEntity.artistName,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(0.4f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
 
-        // Thumbnail with green downloaded badge
-        Box(modifier = Modifier.size(52.dp)) {
-            AsyncImage(
-                model = songEntity.thumbnailUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(10.dp))
-                    .shadow(2.dp, RoundedCornerShape(10.dp))
-            )
-            // Green circle tick badge (bottom-right)
-            if (!isDownloading) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .align(Alignment.BottomEnd)
-                        .clip(CircleShape)
-                        .background(Color(0xFF22C55E)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = "Downloaded",
-                        tint = Color.White,
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-            } else {
-                // Download in progress ring
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .align(Alignment.BottomEnd),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        progress = { downloadProgress },
-                        modifier = Modifier.fillMaxSize(),
-                        strokeWidth = 2.dp,
-                        color = Color(0xFF22C55E),
-                        trackColor = Color(0xFF22C55E).copy(alpha = 0.2f)
-                    )
-                }
+            // More options
+            IconButton(onClick = onMoreClick, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Rounded.MoreVert,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-
-        // Title + artist
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                songEntity.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrentlyPlaying) FontWeight.Bold else FontWeight.Medium,
-                color = if (isCurrentlyPlaying) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                songEntity.artistName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // More options
-        IconButton(onClick = onMoreClick, modifier = Modifier.size(36.dp)) {
-            Icon(
-                Icons.Rounded.MoreVert,
-                contentDescription = "Options",
-                tint = MaterialTheme.colorScheme.onSurface.copy(0.4f),
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

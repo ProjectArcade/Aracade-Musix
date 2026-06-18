@@ -246,6 +246,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val homePage by viewModel.homePage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedChip by viewModel.selectedChip.collectAsState()
+    val recommendations by viewModel.similarRecommendations.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
 
     val pullRefreshState = rememberPullRefreshState(
@@ -345,10 +346,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             }
 
             if (isLoading && homePage?.sections.isNullOrEmpty()) {
-                item {
-                    HomeSectionSkeleton(isFeatured = true)
-                }
-                items(2) {
+                items(3) {
                     HomeSectionSkeleton(isFeatured = false)
                 }
             } else {
@@ -363,17 +361,46 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
 
                 homePage?.sections?.forEachIndexed { index, section ->
-                    item {
-                        HomeSection(title = section.title) {
-                            if (index == 0) {
-                                SwipeableCardStack(items = section.items)
-                            } else {
+                    if (index > 0) {
+                        item {
+                            HomeSection(title = section.title) {
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                     contentPadding = PaddingValues(horizontal = 16.dp)
                                 ) {
                                     items(section.items) { item ->
                                         SquareCard(item)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add recommendations smoothly as section rows below home feed sections
+                if (recommendations.isNotEmpty() && selectedChip == null) {
+                    recommendations.forEach { recommendation ->
+                        item {
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = true,
+                                enter = androidx.compose.animation.fadeIn(
+                                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 600)
+                                )
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Because you listened to ${recommendation.seed.title}",
+                                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        items(recommendation.items) { item ->
+                                            SquareCard(item)
+                                        }
                                     }
                                 }
                             }

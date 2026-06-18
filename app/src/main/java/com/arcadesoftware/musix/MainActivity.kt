@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.arcadesoftware.musix.ui.screens.HomeScreen
 import com.arcadesoftware.musix.ui.screens.PlaylistScreen
+import com.arcadesoftware.musix.ui.screens.RecommendationsScreen
 import com.arcadesoftware.musix.updater.MusixUpdater
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.music.innertube.models.YTItem
@@ -953,7 +954,7 @@ fun MainScreen() {
                 0 -> HomeScreen()
                 1 -> PlaylistScreen()
                 2 -> Text("Library Fragment")
-                3 -> Text("Podcast Fragment")
+                3 -> RecommendationsScreen()
             }
         }
     }
@@ -1039,13 +1040,13 @@ fun AppBottomBar(
             }
             LiquidBottomTab(onClick = { onTabSelected(3) }) {
                 Icon(
-                    Icons.Rounded.Podcasts, 
-                    contentDescription = "Podcast", 
+                    Icons.Rounded.AutoAwesome, 
+                    contentDescription = "Recommend", 
                     tint = if (selectedTab == 3) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Podcast", 
+                    "Recommend", 
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 3) activeColor else inactiveColor
                 )

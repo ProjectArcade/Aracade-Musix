@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.items
 
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -481,255 +481,126 @@ fun SwipeableCardStack(
     val coroutineScope = rememberCoroutineScope()
     
     val swipeX = remember { Animatable(0f) }
-    val swipeY = remember { Animatable(0f) }
     val isSwipingRight = swipeX.value > 0f
     var isAnimating by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(380.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(380.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Show up to 3 cards in the stack
-            for (i in 2 downTo 0) {
-                val cardIndex = if (isSwipingRight) {
-                    // Swiping right: previous card comes in from the left on top
-                    when (i) {
-                        0 -> ((activeIndex - 1) % items.size + items.size) % items.size // Previous card
-                        1 -> activeIndex // Current card
-                        else -> (activeIndex + 1) % items.size // Next card
-                    }
+        // Show up to 3 cards in the stack
+        for (i in 2 downTo 0) {
+            val isTopCard = i == 0
+            val cardIndex = if (isTopCard) {
+                activeIndex
+            } else {
+                if (isSwipingRight) {
+                    ((activeIndex - i) % items.size + items.size) % items.size
                 } else {
-                    // Swiping left: current card slides out to the left
-                    when (i) {
-                        0 -> activeIndex // Current card
-                        1 -> (activeIndex + 1) % items.size // Next card
-                        else -> (activeIndex + 2) % items.size // Second next card
-                    }
+                    (activeIndex + i) % items.size
+                }
+            }
+
+            val cardItem = items[cardIndex]
+
+            key(cardItem.id) {
+                // Background card styling for stack depth
+                val scale = when (i) {
+                    0 -> 1f
+                    1 -> 0.94f
+                    2 -> 0.88f
+                    else -> 0.82f
+                }
+                
+                val offsetY = when (i) {
+                    0 -> 0.dp
+                    1 -> (-16).dp
+                    2 -> (-32).dp
+                    else -> (-48).dp
                 }
 
-                val cardItem = items[cardIndex]
+                val baseRotation = when (i) {
+                    0 -> 0f
+                    1 -> 4f
+                    2 -> -4f
+                    else -> 0f
+                }
 
-                key(cardItem.id) {
-                    val swipeProgress = (kotlin.math.abs(swipeX.value) / 1020f).coerceIn(0f, 1f)
-
-                    // Background card styling for stack depth
-                    val scale: Float
-                    val offsetY: Float
-                    val rotation: Float
-                    val offsetX: Float
-
-                    if (isSwipingRight) {
-                        // Previous card sliding in from left on top of the stack
-                        when (i) {
-                            0 -> { // Previous card coming in
-                                scale = 0.94f + 0.06f * swipeProgress
-                                offsetY = 0f
-                                rotation = 0f
-                                offsetX = -340f * (1f - swipeProgress)
-                            }
-                            1 -> { // Current card retreating to middle
-                                scale = 1f - 0.06f * swipeProgress
-                                offsetY = -16f * swipeProgress
-                                rotation = 4f * swipeProgress
-                                offsetX = 0f
-                            }
-                            else -> { // Next card retreating to bottom
-                                scale = 0.94f - 0.06f * swipeProgress
-                                offsetY = -16f - 16f * swipeProgress
-                                rotation = 4f - 8f * swipeProgress
-                                offsetX = 0f
-                            }
-                        }
-                    } else {
-                        // Current card sliding out to the left
-                        when (i) {
-                            0 -> { // Current card swiping out
-                                scale = 1f
-                                offsetY = swipeY.value / 3f
-                                rotation = 0f
-                                offsetX = swipeX.value / 3f
-                            }
-                            1 -> { // Next card scaling up to front
-                                scale = 0.94f + 0.06f * swipeProgress
-                                offsetY = -16f + 16f * swipeProgress
-                                rotation = 4f * (1f - swipeProgress)
-                                offsetX = 0f
-                            }
-                            else -> { // Second next card scaling up to middle
-                                scale = 0.88f + 0.06f * swipeProgress
-                                offsetY = -32f + 16f * swipeProgress
-                                rotation = -4f + 8f * swipeProgress
-                                offsetX = 0f
-                            }
-                        }
-                    }
-
-                    // Apply swipe gestures to the activeIndex card (which is in the center at start of swipe)
-                    val isTargetForGestures = cardIndex == activeIndex
-
-                    val dragModifier = if (isTargetForGestures) {
-                        Modifier.pointerInput(Unit) {
-                            detectDragGestures(
+                // Apply swipe dynamics only to the top card in the stack
+                val dragModifier = if (isTopCard) {
+                    Modifier
+                        .offset(
+                            x = (swipeX.value / 3f).dp,
+                            y = 0.dp
+                        )
+                        .graphicsLayer(
+                            rotationZ = 0f // Straight horizontal slide-out (no circular motion)
+                        )
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
                                 onDragEnd = {
-                                    if (isAnimating) return@detectDragGestures
+                                    if (isAnimating) return@detectHorizontalDragGestures
                                     coroutineScope.launch {
                                         val targetX = swipeX.value
-                                        if (targetX < -300f) {
+                                        if (kotlin.math.abs(targetX) > 300f) {
                                             isAnimating = true
-                                            // Swipe current card off screen left
-                                            val animJob1 = launch {
-                                                swipeX.animateTo(
-                                                    targetValue = -1020f,
-                                                    animationSpec = tween(durationMillis = 300)
-                                                )
-                                            }
-                                            val animJob2 = launch {
-                                                swipeY.animateTo(
-                                                    targetValue = swipeY.value * 2f,
-                                                    animationSpec = tween(durationMillis = 300)
-                                                )
-                                            }
-                                            animJob1.join()
-                                            animJob2.join()
-                                            
-                                            currentIndex++
-                                            swipeX.snapTo(0f)
-                                            swipeY.snapTo(0f)
-                                            isAnimating = false
-                                        } else if (targetX > 300f) {
-                                            isAnimating = true
-                                            // Pull previous card fully to center
+                                            // Swipe card off screen
+                                            val swipeDirection = if (targetX > 0) 1020f else -1020f
                                             swipeX.animateTo(
-                                                targetValue = 1020f,
+                                                targetValue = swipeDirection,
                                                 animationSpec = tween(durationMillis = 300)
                                             )
-                                            currentIndex--
+                                            
+                                            // Swipe right (targetX > 0) goes to previous card, swipe left (targetX < 0) goes to next card
+                                            if (targetX > 0) {
+                                                currentIndex--
+                                            } else {
+                                                currentIndex++
+                                            }
                                             swipeX.snapTo(0f)
-                                            swipeY.snapTo(0f)
                                             isAnimating = false
                                         } else {
-                                            // Snap back to center / snap previous card back off-screen
-                                            val animJobX = launch { swipeX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
-                                            val animJobY = launch { swipeY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
-                                            animJobX.join()
-                                            animJobY.join()
+                                            // Snap card back to center
+                                            swipeX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                                         }
                                     }
                                 },
-                                onDrag = { change, dragAmount ->
-                                    if (isAnimating) return@detectDragGestures
+                                onHorizontalDrag = { change, dragAmount ->
+                                    if (isAnimating) return@detectHorizontalDragGestures
                                     change.consume()
                                     coroutineScope.launch {
-                                        swipeX.snapTo(swipeX.value + dragAmount.x)
-                                        swipeY.snapTo(swipeY.value + dragAmount.y)
+                                        swipeX.snapTo(swipeX.value + dragAmount)
                                     }
                                 }
                             )
                         }
+                } else {
+                    // Background cards scale up, float down, and rotate to transition to top card state
+                    val swipeProgress = (kotlin.math.abs(swipeX.value) / 1020f).coerceIn(0f, 1f)
+                    val targetScale = scale + (0.06f * swipeProgress)
+                    val targetOffsetY = offsetY + (16.dp * swipeProgress)
+                    val targetRotation = if (i == 1) {
+                        baseRotation * (1f - swipeProgress)
                     } else {
-                        Modifier
+                        baseRotation + (8f * swipeProgress) // moves from -4f to +4f
                     }
-
-                    FeaturedCard(
-                        item = cardItem,
-                        modifier = Modifier
-                            .then(dragModifier)
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                rotationZ = rotation
-                            )
-                            .offset(x = offsetX.dp, y = offsetY.dp)
-                            .width(300.dp)
-                            .height(340.dp)
-                    )
+                    Modifier
+                        .graphicsLayer(
+                            scaleX = targetScale,
+                            scaleY = targetScale,
+                            rotationZ = targetRotation
+                        )
+                        .offset(y = targetOffsetY)
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Visual controls / indicator below the card stack
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left to Next button
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .clickable(enabled = !isAnimating) {
-                        isAnimating = true
-                        coroutineScope.launch {
-                            swipeX.animateTo(
-                                targetValue = -1020f,
-                                animationSpec = tween(durationMillis = 350)
-                            )
-                            currentIndex++
-                            swipeX.snapTo(0f)
-                            isAnimating = false
-                        }
-                    }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Swipe Left for Next",
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = "Left to Next",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Right to Previous button
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .clickable(enabled = !isAnimating) {
-                        isAnimating = true
-                        coroutineScope.launch {
-                            swipeX.animateTo(
-                                targetValue = 1020f,
-                                animationSpec = tween(durationMillis = 350)
-                            )
-                            currentIndex--
-                            swipeX.snapTo(0f)
-                            isAnimating = false
-                        }
-                    }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Right to Previous",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                    contentDescription = "Swipe Right for Previous",
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp)
+                FeaturedCard(
+                    item = cardItem,
+                    modifier = Modifier
+                        .then(dragModifier)
+                        .width(300.dp)
+                        .height(340.dp)
                 )
             }
         }

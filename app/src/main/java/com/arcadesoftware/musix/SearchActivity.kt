@@ -265,7 +265,7 @@ fun SearchScreen(onBack: () -> Unit) {
         // This matches the MainScreen pattern and eliminates the circular GPU SIGSEGV.
         androidx.compose.animation.AnimatedVisibility(
             visible = currentSong != null,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.align(Alignment.BottomEnd),
             enter = slideInVertically(initialOffsetY = { it }),
             exit = slideOutVertically(targetOffsetY = { it })
         ) {

@@ -22,6 +22,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +47,7 @@ import com.arcadesoftware.musix.ui.screens.PlaylistDetailScreen
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import androidx.annotation.OptIn
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +62,7 @@ import com.music.innertube.models.*
 import com.music.innertube.YouTube
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,8 +84,9 @@ object PlayerManager {
     val currentQueueIndex = MutableStateFlow(0)
     val autoPlayEnabled = MutableStateFlow(true)
     val activePlaylistDetail = MutableStateFlow<YTItem?>(null)
+    val activeUserPlaylist = MutableStateFlow<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null)
     val currentPlayingPlaylist = MutableStateFlow<YTItem?>(null)
-    private var appContext: android.content.Context? = null
+    private var appContext: Context? = null
     private var mediaSession: android.media.session.MediaSession? = null
     private var lastThumbnailUrl: String? = null
     private var currentMetadataSongId: String? = null
@@ -92,7 +99,7 @@ object PlayerManager {
     private var simpleCache: androidx.media3.datasource.cache.SimpleCache? = null
 
     @Synchronized
-    private fun getCache(context: android.content.Context): androidx.media3.datasource.cache.SimpleCache {
+    private fun getCache(context: Context): androidx.media3.datasource.cache.SimpleCache {
         if (simpleCache == null) {
             val cacheDir = java.io.File(context.cacheDir, "media_cache")
             val evictor = androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor(1024 * 1024 * 512) // 512 MB cache
@@ -109,19 +116,19 @@ object PlayerManager {
 
     // Complete client order mirroring Echo-Music to check all playback possibilities
     private val CLIENTS = arrayOf(
-        com.music.innertube.models.YouTubeClient.ANDROID_VR_NO_AUTH,
-        com.music.innertube.models.YouTubeClient.ANDROID_VR_1_43_32,
-        com.music.innertube.models.YouTubeClient.ANDROID_VR_1_61_48,
-        com.music.innertube.models.YouTubeClient.TVHTML5_SIMPLY_EMBEDDED_PLAYER,
-        com.music.innertube.models.YouTubeClient.TVHTML5,
-        com.music.innertube.models.YouTubeClient.ANDROID_CREATOR,
-        com.music.innertube.models.YouTubeClient.IPADOS,
-        com.music.innertube.models.YouTubeClient.IOS,
-        com.music.innertube.models.YouTubeClient.WEB,
-        com.music.innertube.models.YouTubeClient.WEB_REMIX,
-        com.music.innertube.models.YouTubeClient.WEB_CREATOR,
-        com.music.innertube.models.YouTubeClient.MOBILE,
-        com.music.innertube.models.YouTubeClient.ANDROID_NO_SDK,
+        YouTubeClient.ANDROID_VR_NO_AUTH,
+        YouTubeClient.ANDROID_VR_1_43_32,
+        YouTubeClient.ANDROID_VR_1_61_48,
+        YouTubeClient.TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+        YouTubeClient.TVHTML5,
+        YouTubeClient.ANDROID_CREATOR,
+        YouTubeClient.IPADOS,
+        YouTubeClient.IOS,
+        YouTubeClient.WEB,
+        YouTubeClient.WEB_REMIX,
+        YouTubeClient.WEB_CREATOR,
+        YouTubeClient.MOBILE,
+        YouTubeClient.ANDROID_NO_SDK,
     )
 
     private fun validateUrl(urlStr: String, userAgent: String): Boolean {
@@ -132,10 +139,10 @@ object PlayerManager {
             connection.setRequestProperty("User-Agent", userAgent)
             connection.connectTimeout = 3000
             connection.readTimeout = 3000
-            
+
             val responseCode = connection.responseCode
             android.util.Log.d(TAG, "Validation response for URL: $responseCode")
-            
+
             // Accept 2xx success codes or 3xx redirects
             responseCode in 200..399
         } catch (e: Exception) {
@@ -144,7 +151,8 @@ object PlayerManager {
         }
     }
 
-    fun init(context: android.content.Context) {
+    @OptIn(UnstableApi::class)
+    fun init(context: Context) {
         if (exoPlayer == null) {
             appContext = context.applicationContext
 
@@ -181,20 +189,20 @@ object PlayerManager {
                 addAction(ACTION_DISMISS)
             }
             val receiver = object : android.content.BroadcastReceiver() {
-                override fun onReceive(ctx: android.content.Context, intent: android.content.Intent) {
+                override fun onReceive(ctx: Context, intent: android.content.Intent) {
                     when (intent.action) {
                         ACTION_PLAY -> exoPlayer?.play()
                         ACTION_PAUSE -> exoPlayer?.pause()
                         ACTION_PREVIOUS -> playPrevious()
                         ACTION_NEXT -> playNext()
                         ACTION_DISMISS -> {
-                            appContext?.let { com.arcadesoftware.musix.PlaybackService.stop(it) }
+                            appContext?.let { PlaybackService.stop(it) }
                         }
                     }
                 }
             }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
                 context.registerReceiver(receiver, filter)
             }
@@ -247,10 +255,10 @@ object PlayerManager {
                     isPlaying.value = playing
                     updatePlaybackState()
                     showOrUpdateNotification()
-                    
+
                     appContext?.let { ctx ->
                         if (playing) {
-                            com.arcadesoftware.musix.PlaybackService.start(ctx)
+                            PlaybackService.start(ctx)
                         }
                     }
                 }
@@ -269,7 +277,7 @@ object PlayerManager {
                             } else if (autoPlayEnabled.value) {
                                 currentSong.value?.let { song ->
                                     scope.launch {
-                                        val endpoint = com.music.innertube.models.WatchEndpoint(videoId = song.id)
+                                        val endpoint = WatchEndpoint(videoId = song.id)
                                         YouTube.next(endpoint).onSuccess { nextResult ->
                                             val nextItems = nextResult.items.filter { it.id != song.id }
                                             if (nextItems.isNotEmpty()) {
@@ -333,7 +341,7 @@ object PlayerManager {
         song: SongItem,
         destFile: java.io.File,
         onProgress: (Float) -> Unit = {}
-    ): String? = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    ): String? = withContext(Dispatchers.IO) {
         val videoId = song.id
         var streamUrl: String? = null
         var usedUserAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
@@ -400,7 +408,7 @@ object PlayerManager {
         }
     }
 
-    fun startDownload(song: SongItem, context: android.content.Context) {
+    fun startDownload(song: SongItem, context: Context) {
         val songId = song.id
         synchronized(downloadProgressMap) {
             if (downloadProgressMap.value.containsKey(songId)) return
@@ -463,7 +471,7 @@ object PlayerManager {
         } else if (autoPlayEnabled.value) {
             currentSong.value?.let { song ->
                 scope.launch {
-                    val endpoint = com.music.innertube.models.WatchEndpoint(videoId = song.id)
+                    val endpoint = WatchEndpoint(videoId = song.id)
                     YouTube.next(endpoint).onSuccess { nextResult ->
                         val nextItems = nextResult.items.filter { it.id != song.id }
                         if (nextItems.isNotEmpty()) {
@@ -596,7 +604,7 @@ object PlayerManager {
                     android.util.Log.d(TAG, "Playing local downloaded file: ${localFile.absolutePath}")
                     withContext(Dispatchers.Main) {
                         exoPlayer?.stop()
-                        exoPlayer?.setMediaItem(androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(localFile)))
+                        exoPlayer?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(localFile)))
                         exoPlayer?.prepare()
                         exoPlayer?.play()
                         updatePlaybackDetails()
@@ -735,7 +743,7 @@ object PlayerManager {
                 .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, song.title)
                 .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, song.artists.joinToString { it.name })
                 .putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, durationMs)
-            
+
             currentMetadataBitmap?.let { bitmap ->
                 metadataBuilder.putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
             }
@@ -746,10 +754,10 @@ object PlayerManager {
             .setState(state, player.currentPosition, 1.0f)
             .setActions(
                 android.media.session.PlaybackState.ACTION_PLAY or
-                android.media.session.PlaybackState.ACTION_PAUSE or
-                android.media.session.PlaybackState.ACTION_SEEK_TO or
-                android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT or
-                android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                        android.media.session.PlaybackState.ACTION_PAUSE or
+                        android.media.session.PlaybackState.ACTION_SEEK_TO or
+                        android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT or
+                        android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS
             )
             .build()
 
@@ -795,7 +803,7 @@ object PlayerManager {
                 val thumbUrl = song.thumbnail
                 val highResUrl = if (thumbUrl.contains("=w") || thumbUrl.contains("-w")) {
                     thumbUrl.replace(Regex("=w\\d+-h\\d+.*"), "=w1080-h1080")
-                         .replace(Regex("w\\d+-h\\d+(-s\\d+)?(-c\\d+)?(-k.*)?$"), "w1080-h1080-l90-rj")
+                        .replace(Regex("w\\d+-h\\d+(-s\\d+)?(-c\\d+)?(-k.*)?$"), "w1080-h1080-l90-rj")
                 } else thumbUrl
 
                 for (url in listOf(highResUrl, thumbUrl)) {
@@ -973,7 +981,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         // Configure global Coil ImageLoader with disk and memory cache
         try {
             val imageLoader = coil.ImageLoader.Builder(applicationContext)
@@ -1013,13 +1021,15 @@ fun MainScreen() {
     val playlistBackdrop = rememberLayerBackdrop()
     val currentSong by PlayerManager.currentSong.collectAsState()
     val activePlaylistDetail by PlayerManager.activePlaylistDetail.collectAsState()
+    val activeUserPlaylist by PlayerManager.activeUserPlaylist.collectAsState()
+    val showBottomBar = activePlaylistDetail == null && activeUserPlaylist == null
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         android.util.Log.d("MainScreen", "POST_NOTIFICATIONS permission granted: $isGranted")
     }
-    
+
     LaunchedEffect(Unit) {
         PlayerManager.init(context.applicationContext)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -1033,21 +1043,27 @@ fun MainScreen() {
             onNoUpdate = {}
         )
     }
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
-                AppBottomBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { 
-                        selectedTab = it
-                    },
-                    onSearchClick = { 
-                        context.startActivity(android.content.Intent(context, SearchActivity::class.java))
-                    },
-                    backdrop = mainBackdrop
-                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showBottomBar,
+                    enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
+                    exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it })
+                ) {
+                    AppBottomBar(
+                        selectedTab = selectedTab,
+                        onTabSelected = {
+                            selectedTab = it
+                        },
+                        onSearchClick = {
+                            context.startActivity(android.content.Intent(context, SearchActivity::class.java))
+                        },
+                        backdrop = mainBackdrop
+                    )
+                }
             }
         ) { innerPadding ->
             Box(
@@ -1126,58 +1142,58 @@ fun AppBottomBar(
         ) {
             LiquidBottomTab(onClick = { onTabSelected(0) }) {
                 Icon(
-                    Icons.Rounded.Home, 
-                    contentDescription = "Home", 
+                    Icons.Rounded.Home,
+                    contentDescription = "Home",
                     tint = if (selectedTab == 0) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Home", 
+                    "Home",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 0) activeColor else inactiveColor
                 )
             }
             LiquidBottomTab(onClick = { onTabSelected(1) }) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.QueueMusic, 
-                    contentDescription = "Playlist", 
+                    Icons.AutoMirrored.Rounded.QueueMusic,
+                    contentDescription = "Playlist",
                     tint = if (selectedTab == 1) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Playlist", 
+                    "Playlist",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 1) activeColor else inactiveColor
                 )
             }
             LiquidBottomTab(onClick = { onTabSelected(2) }) {
                 Icon(
-                    Icons.Rounded.LibraryMusic, 
-                    contentDescription = "Library", 
+                    Icons.Rounded.LibraryMusic,
+                    contentDescription = "Library",
                     tint = if (selectedTab == 2) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Library", 
+                    "Library",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 2) activeColor else inactiveColor
                 )
             }
             LiquidBottomTab(onClick = { onTabSelected(3) }) {
                 Icon(
-                    Icons.Rounded.AutoAwesome, 
-                    contentDescription = "Recommend", 
+                    Icons.Rounded.AutoAwesome,
+                    contentDescription = "Recommend",
                     tint = if (selectedTab == 3) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Recommend", 
+                    "Recommend",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 3) activeColor else inactiveColor
                 )
             }
         }
-        
+
         com.arcadesoftware.musix.components.LiquidButton(
             onClick = onSearchClick,
             backdrop = backdrop,
@@ -1185,8 +1201,8 @@ fun AppBottomBar(
             modifier = Modifier.size(64.dp)
         ) {
             Icon(
-                Icons.Rounded.Search, 
-                contentDescription = "Search", 
+                Icons.Rounded.Search,
+                contentDescription = "Search",
                 tint = inactiveColor,
                 modifier = Modifier.size(26.dp)
             )
@@ -1204,6 +1220,71 @@ fun MiniPlayer(
     var expanded by remember { mutableStateOf(false) }
     var isFab by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
+    var lyricsText by remember { mutableStateOf<String?>(null) }
+    var lyricsLines by remember { mutableStateOf<List<LyricLine>>(emptyList()) }
+    var isLoadingLyrics by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentSong?.id) {
+        showLyrics = false
+        lyricsText = null
+        lyricsLines = emptyList()
+        val song = currentSong ?: return@LaunchedEffect
+        val songId = song.id
+        isLoadingLyrics = true
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val artistNames = when (song) {
+                    is SongItem -> song.artists?.joinToString { it.name } ?: "Unknown Artist"
+                    is AlbumItem -> song.artists?.joinToString { it.name } ?: "Unknown Artist"
+                    else -> "Unknown Artist"
+                }
+                val titleName = when (song) {
+                    is SongItem -> song.title
+                    is AlbumItem -> song.title
+                    else -> "Unknown Title"
+                }
+                
+                // 1. Try LrcLib first
+                val lrcLyrics = fetchLrcLibLyrics(titleName, artistNames)
+                if (lrcLyrics != null) {
+                    if (lrcLyrics.startsWith("[")) {
+                        val parsed = parseSyncedLyrics(lrcLyrics)
+                        if (parsed.isNotEmpty()) {
+                            lyricsLines = parsed
+                            lyricsText = lrcLyrics
+                            isLoadingLyrics = false
+                            return@withContext
+                        }
+                    }
+                    lyricsText = lrcLyrics
+                    isLoadingLyrics = false
+                    return@withContext
+                }
+
+                // 2. Fallback to YouTube Music lyrics
+                val endpoint = WatchEndpoint(videoId = songId)
+                YouTube.next(endpoint).onSuccess { nextResult ->
+                    val lyricsEndpoint = nextResult.lyricsEndpoint
+                    if (lyricsEndpoint != null) {
+                        YouTube.lyrics(lyricsEndpoint).onSuccess { lyrics ->
+                            lyricsText = lyrics ?: "No lyrics available."
+                        }.onFailure {
+                            lyricsText = "Failed to load lyrics."
+                        }
+                    } else {
+                        lyricsText = "Lyrics not available for this song."
+                    }
+                }.onFailure {
+                    lyricsText = "Failed to load lyrics endpoint."
+                }
+            } catch (e: Exception) {
+                lyricsText = "Error loading lyrics: ${e.message}"
+            } finally {
+                isLoadingLyrics = false
+            }
+        }
+    }
     val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
     val isPlaying by PlayerManager.isPlaying.collectAsState()
     val currentAlpha by androidx.compose.animation.core.animateFloatAsState(if (expanded) 0.85f else (if (isLightTheme) 0.5f else 0.4f))
@@ -1233,43 +1314,50 @@ fun MiniPlayer(
         else -> ""
     }
 
-    val bottomPadding by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else if (isFab) collapsedBottomPadding + 80.dp else collapsedBottomPadding)
-    val horizontalPadding by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else if (isFab) 16.dp else 45.dp)
-    val cornerRadius by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else if (isFab) 32.dp else 100.dp)
+    val bottomPadding by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else collapsedBottomPadding)
+    val horizontalPadding by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else if (isFab) 45.dp else 45.dp)
+    val cornerRadius by androidx.compose.animation.core.animateDpAsState(if (expanded) 0.dp else 100.dp)
     val currentBlur by androidx.compose.animation.core.animateDpAsState(if (expanded) 8.dp else 4.dp)
+
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val targetWidth = if (expanded) screenWidth else if (isFab) 64.dp else screenWidth
+    val animatedWidth by androidx.compose.animation.core.animateDpAsState(targetWidth)
+
+    val targetStartPadding = if (expanded) 0.dp else if (isFab) 0.dp else horizontalPadding
+    val targetEndPadding = if (expanded) 0.dp else if (isFab) 24.dp else horizontalPadding
+    val startPadding by androidx.compose.animation.core.animateDpAsState(targetStartPadding)
+    val endPadding by androidx.compose.animation.core.animateDpAsState(targetEndPadding)
 
     // Use fillMaxSize when expanded so the player covers the whole screen
     val playerModifier = if (expanded) {
         modifier
             .fillMaxSize()
             .pointerInput(expanded, isFab) {
+                var isDragValid = false
                 detectVerticalDragGestures(
+                    onDragStart = { startPosition ->
+                        isDragValid = startPosition.y < size.height * 0.65f
+                    },
                     onVerticalDrag = { _, dragAmount ->
-                        if (dragAmount > 10f) expanded = false
-                    }
-                )
-            }
-    } else if (isFab) {
-        modifier
-            .padding(bottom = bottomPadding, end = horizontalPadding)
-            .size(64.dp)
-            .pointerInput(expanded, isFab) {
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { _, dragAmount ->
-                        if (dragAmount < -10f) isFab = false
+                        if (isDragValid && dragAmount > 10f) expanded = false
                     }
                 )
             }
     } else {
         modifier
-            .fillMaxWidth()
-            .padding(bottom = bottomPadding, start = horizontalPadding, end = horizontalPadding)
+            .padding(bottom = bottomPadding, start = startPadding, end = endPadding)
+            .width(animatedWidth)
+            .height(64.dp)
             .pointerInput(expanded, isFab) {
                 detectDragGestures(
                     onDrag = { change, dragAmount ->
                         change.consume()
                         if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
-                            if (dragAmount.x > 10f) isFab = true
+                            if (isFab) {
+                                if (dragAmount.x < -10f) isFab = false
+                            } else {
+                                if (dragAmount.x > 10f) isFab = true
+                            }
                         } else {
                             if (dragAmount.y < -10f) expanded = true
                         }
@@ -1281,13 +1369,19 @@ fun MiniPlayer(
     val activePlaylistDetail by PlayerManager.activePlaylistDetail.collectAsState()
 
     com.arcadesoftware.musix.components.LiquidButton(
-        onClick = { 
+        onClick = {
             if (isFab) {
-                isFab = false 
+                isFab = false
             } else if (!expanded) {
                 val playlist = PlayerManager.currentPlayingPlaylist.value
                 if (playlist != null && activePlaylistDetail == null) {
-                    PlayerManager.activePlaylistDetail.value = playlist
+                    val id = (playlist as? PlaylistItem)?.id
+                    if (id == "downloads" || id?.toLongOrNull() != null) {
+                        // local playlist — don't open YT detail, just expand player
+                        expanded = true
+                    } else {
+                        PlayerManager.activePlaylistDetail.value = playlist
+                    }
                 } else {
                     expanded = true
                 }
@@ -1297,7 +1391,7 @@ fun MiniPlayer(
         surfaceColor = containerColor,
         blurRadius = currentBlur,
         isInteractive = false,
-        shape = { RoundedCornerShape(cornerRadius) },
+        shape = { if (isFab) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(cornerRadius) },
         modifier = playerModifier
     ) {
         val consumeClicksModifier = Modifier.clickable(
@@ -1305,24 +1399,15 @@ fun MiniPlayer(
             indication = null
         ) {}
 
-        if (isFab) {
-            Icon(
-                Icons.Rounded.LibraryMusic, 
-                contentDescription = "Player", 
-                tint = contentColor,
-                modifier = Modifier.size(26.dp)
-            )
-            return@LiquidButton
-        }
-
         if (!expanded) {
-            // ---- Collapsed Mini Player ----
+            // ---- Collapsed Mini Player (also used when isFab = true, showing full row) ----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = if (isFab) 6.dp else 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                 val rotation by infiniteTransition.animateFloat(
@@ -1365,64 +1450,67 @@ fun MiniPlayer(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(androidx.compose.ui.graphics.RectangleShape) // Clip marquee
-                ) {
-                    Text(
-                        text = title,
-                        color = contentColor,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+
+                if (!isFab) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(androidx.compose.ui.graphics.RectangleShape)
+                    ) {
+                        Text(
+                            text = title,
+                            color = contentColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                        )
+                        Text(
+                            subtitle,
+                            color = contentColor.copy(0.7f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.SkipPrevious,
+                        contentDescription = "Previous",
+                        tint = contentColor,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) { PlayerManager.playPrevious() }
                     )
-                    Text(
-                        subtitle,
-                        color = contentColor.copy(0.7f),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Icon(
+                        playPauseIcon,
+                        contentDescription = "Play/Pause",
+                        tint = contentColor,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) { PlayerManager.togglePlayPause() }
                     )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Icon(
+                        Icons.Rounded.SkipNext,
+                        contentDescription = "Next",
+                        tint = contentColor,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) { PlayerManager.playNext() }
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                 }
-                Icon(
-                    Icons.Rounded.SkipPrevious,
-                    contentDescription = "Previous",
-                    tint = contentColor,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) { PlayerManager.playPrevious() }
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Icon(
-                    playPauseIcon,
-                    contentDescription = "Play/Pause",
-                    tint = contentColor,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) { PlayerManager.togglePlayPause() }
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Icon(
-                    Icons.Rounded.SkipNext,
-                    contentDescription = "Next",
-                    tint = contentColor,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) { PlayerManager.playNext() }
-                )
-                Spacer(modifier = Modifier.width(4.dp))
             }
         } else {
             // ---- Expanded Full-Screen Player ----
@@ -1434,412 +1522,513 @@ fun MiniPlayer(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                // Drag handle at the top
-                Box(
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(contentColor.copy(alpha = 0.3f))
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Album art — square, max width but respecting available height
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color.Gray.copy(0.3f))
-                ) {
-                    AsyncImage(
-                        model = thumbnail ?: "",
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                    // Drag handle at the top
+                    Box(
+                        modifier = Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(contentColor.copy(alpha = 0.3f))
                     )
-                }
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // Title + like button row
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
+                    // Album art / Lyrics Box
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 16.dp)
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.Gray.copy(if (showLyrics) 0.1f else 0.3f))
                     ) {
-                        Text(
-                            title,
-                            color = contentColor,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            maxLines = 1,
-                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            subtitle,
-                            color = contentColor.copy(0.7f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                    val context = LocalContext.current
-                    var isSongLiked by remember(currentSong?.id) {
-                        mutableStateOf(currentSong?.id?.let { com.arcadesoftware.musix.db.LikedSongsManager.isSongLiked(context, it) } ?: false)
-                    }
-                    Icon(
-                        imageVector = if (isSongLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (isSongLiked) Color(0xFFFA243C) else contentColor,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clickable {
-                                currentSong?.id?.let { songId ->
-                                    val nowLiked = com.arcadesoftware.musix.db.LikedSongsManager.toggleLikeSong(context, songId)
-                                    isSongLiked = nowLiked
-                                    if (nowLiked) {
-                                        com.arcadesoftware.musix.components.HeartAnimManager.trigger()
+                        if (showLyrics) {
+                            if (isLoadingLyrics) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = contentColor)
+                                }
+                            } else if (lyricsLines.isNotEmpty()) {
+                                val currentPosition by PlayerManager.currentPosition.collectAsState()
+                                val activeIndex = remember(lyricsLines, currentPosition) {
+                                    var index = -1
+                                    for (i in lyricsLines.indices) {
+                                        if (currentPosition >= lyricsLines[i].timestamp) {
+                                            index = i
+                                        } else {
+                                            break
+                                        }
+                                    }
+                                    index
+                                }
+                                val listState = rememberLazyListState()
+                                LaunchedEffect(activeIndex) {
+                                    if (activeIndex >= 0) {
+                                        listState.animateScrollToItem(activeIndex)
                                     }
                                 }
-                            }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Seekbar with time labels
-                val currentPosition by PlayerManager.currentPosition.collectAsState()
-                val currentDuration by PlayerManager.currentDuration.collectAsState()
-                var sliderDragValue by remember { mutableStateOf<Float?>(null) }
-                val sliderValue = sliderDragValue
-                    ?: (if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f)
-
-                val sliderConsumeGesture = Modifier.pointerInput(Unit) {
-                    detectVerticalDragGestures { _, _ -> }
-                }
-
-                com.arcadesoftware.musix.components.LiquidSlider(
-                    value = { sliderValue },
-                    onValueChange = { sliderDragValue = it },
-                    onValueChangeFinished = {
-                        sliderDragValue?.let { PlayerManager.seekTo(it) }
-                        sliderDragValue = null
-                    },
-                    valueRange = 0f..1f,
-                    visibilityThreshold = 0.001f,
-                    backdrop = backdrop,
-                    accentColor = contentColor,
-                    modifier = Modifier.fillMaxWidth().then(sliderConsumeGesture)
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Time labels
-                val displayPosition = if (sliderDragValue != null && currentDuration > 0)
-                    (sliderDragValue!! * currentDuration).toLong()
-                else currentPosition
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = formatDuration(displayPosition),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor.copy(0.6f)
-                    )
-                    Text(
-                        text = formatDuration(currentDuration),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor.copy(0.6f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Playback controls
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Rounded.SkipPrevious,
-                        contentDescription = "Previous",
-                        tint = contentColor,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) { PlayerManager.playPrevious() }
-                    )
-                    Icon(
-                        playPauseIcon,
-                        contentDescription = "Play/Pause",
-                        tint = contentColor,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) { PlayerManager.togglePlayPause() }
-                    )
-                    Icon(
-                        Icons.Rounded.SkipNext,
-                        contentDescription = "Next",
-                        tint = contentColor,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) { PlayerManager.playNext() }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Secondary controls
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    var showAddToPlaylist by remember { mutableStateOf(false) }
-                    val addSong = currentSong as? SongItem
-                    Icon(
-                        imageVector = Icons.Rounded.AddCircleOutline,
-                        contentDescription = "Add to Playlist",
-                        tint = contentColor.copy(0.8f),
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) { if (addSong != null) showAddToPlaylist = true }
-                    )
-                    if (showAddToPlaylist && addSong != null) {
-                        com.arcadesoftware.musix.components.AddToPlaylistSheet(
-                            song = addSong,
-                            onDismiss = { showAddToPlaylist = false }
-                        )
-                    }
-                    val downloadContext = LocalContext.current
-                    val db = remember(downloadContext) { com.arcadesoftware.musix.db.AppDatabase.getDatabase(downloadContext) }
-
-                    val downloadedSongState = remember(currentSong) {
-                        val song = currentSong as? SongItem
-                        if (song != null) {
-                            db.musicDao().getDownloadedSongFlow(song.id)
-                        } else {
-                            kotlinx.coroutines.flow.flowOf(null)
-                        }
-                    }.collectAsState(initial = null)
-
-                    val isDownloaded = downloadedSongState.value?.let { downloadedSong ->
-                        !downloadedSong.localFilePath.isNullOrEmpty() && java.io.File(downloadedSong.localFilePath).exists()
-                    } ?: false
-
-                    val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
-                    val songId = (currentSong as? SongItem)?.id ?: ""
-                    val isDownloading = downloadProgressMap.containsKey(songId)
-                    val downloadProgress = downloadProgressMap[songId] ?: 0f
-
-                    androidx.compose.animation.AnimatedContent(
-                        targetState = when {
-                            isDownloaded -> 2
-                            isDownloading -> 1
-                            else -> 0
-                        },
-                        label = "download"
-                    ) { state ->
-                        when (state) {
-                            2 -> Icon(
-                                imageVector = Icons.Rounded.DownloadDone,
-                                contentDescription = "Downloaded",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp).then(consumeClicksModifier)
-                            )
-                            1 -> {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(28.dp).then(consumeClicksModifier)
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 120.dp, horizontal = 24.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    CircularProgressIndicator(
-                                        progress = { downloadProgress },
-                                        modifier = Modifier.fillMaxSize(),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(RoundedCornerShape(1.5.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
+                                    itemsIndexed(lyricsLines) { index, line ->
+                                        val isActive = index == activeIndex
+                                        val alpha by androidx.compose.animation.core.animateFloatAsState(if (isActive) 1f else 0.4f)
+                                        val scale by androidx.compose.animation.core.animateFloatAsState(if (isActive) 1.05f else 1f)
+                                        Text(
+                                            text = line.text,
+                                            color = contentColor.copy(alpha = alpha),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold,
+                                                fontSize = if (isActive) 22.sp else 18.sp,
+                                                textAlign = TextAlign.Center,
+                                                lineHeight = 30.sp
+                                            ),
+                                            modifier = Modifier
+                                                .graphicsLayer {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                }
+                                                .fillMaxWidth()
+                                                .clickable(
+                                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                    indication = null
+                                                ) {
+                                                    val duration = PlayerManager.currentDuration.value
+                                                    if (duration > 0) {
+                                                        val progress = line.timestamp.toFloat() / duration
+                                                        PlayerManager.seekTo(progress.coerceIn(0f, 1f))
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
+                            } else {
+                                val scrollState = rememberScrollState()
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(scrollState)
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = lyricsText ?: "No lyrics available.",
+                                        color = contentColor,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            lineHeight = 28.sp,
+                                            textAlign = TextAlign.Center
+                                        )
                                     )
                                 }
                             }
-                            else -> Icon(
-                                imageVector = Icons.Rounded.Download,
-                                contentDescription = "Download",
-                                tint = contentColor.copy(0.8f),
-                                modifier = Modifier.size(28.dp).clickable(
+                        } else {
+                            AsyncImage(
+                                model = thumbnail ?: "",
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(28.dp))
+
+                    // Title + like button row
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 16.dp)
+                        ) {
+                            Text(
+                                title,
+                                color = contentColor,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                maxLines = 1,
+                                modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                subtitle,
+                                color = contentColor.copy(0.7f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        val context = LocalContext.current
+                        var isSongLiked by remember(currentSong?.id) {
+                            mutableStateOf(currentSong?.id?.let { com.arcadesoftware.musix.db.LikedSongsManager.isSongLiked(context, it) } ?: false)
+                        }
+                        Icon(
+                            imageVector = if (isSongLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (isSongLiked) Color(0xFFFA243C) else contentColor,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable {
+                                    currentSong?.id?.let { songId ->
+                                        val nowLiked = com.arcadesoftware.musix.db.LikedSongsManager.toggleLikeSong(context, songId)
+                                        isSongLiked = nowLiked
+                                        if (nowLiked) {
+                                            com.arcadesoftware.musix.components.HeartAnimManager.trigger()
+                                        }
+                                    }
+                                }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Seekbar with time labels
+                    val currentPosition by PlayerManager.currentPosition.collectAsState()
+                    val currentDuration by PlayerManager.currentDuration.collectAsState()
+                    var sliderDragValue by remember { mutableStateOf<Float?>(null) }
+                    val sliderValue = sliderDragValue
+                        ?: (if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f)
+
+                    val sliderConsumeGesture = Modifier.pointerInput(Unit) {
+                        detectVerticalDragGestures { _, _ -> }
+                    }
+
+                    key(Unit) {
+                        com.arcadesoftware.musix.components.LiquidSlider(
+                            value = { sliderValue },
+                            onValueChange = { sliderDragValue = it },
+                            onValueChangeFinished = {
+                                sliderDragValue?.let { PlayerManager.seekTo(it) }
+                                sliderDragValue = null
+                            },
+                            valueRange = 0f..1f,
+                            visibilityThreshold = 0.001f,
+                            backdrop = backdrop,
+                            accentColor = contentColor,
+                            modifier = Modifier.fillMaxWidth().then(sliderConsumeGesture)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Time labels
+                    val displayPosition = if (sliderDragValue != null && currentDuration > 0)
+                        (sliderDragValue!! * currentDuration).toLong()
+                    else currentPosition
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = formatDuration(displayPosition),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(0.6f)
+                        )
+                        Text(
+                            text = formatDuration(currentDuration),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(0.6f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Playback controls
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = contentColor,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { PlayerManager.playPrevious() }
+                        )
+                        Icon(
+                            playPauseIcon,
+                            contentDescription = "Play/Pause",
+                            tint = contentColor,
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { PlayerManager.togglePlayPause() }
+                        )
+                        Icon(
+                            Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            tint = contentColor,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { PlayerManager.playNext() }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Secondary controls
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        var showAddToPlaylist by remember { mutableStateOf(false) }
+                        val addSong = currentSong as? SongItem
+                        Icon(
+                            imageVector = Icons.Rounded.AddCircleOutline,
+                            contentDescription = "Add to Playlist",
+                            tint = contentColor.copy(0.8f),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { if (addSong != null) showAddToPlaylist = true }
+                        )
+                        if (showAddToPlaylist && addSong != null) {
+                            com.arcadesoftware.musix.components.AddToPlaylistSheet(
+                                song = addSong,
+                                onDismiss = { showAddToPlaylist = false }
+                            )
+                        }
+                        val downloadContext = LocalContext.current
+                        val db = remember(downloadContext) { com.arcadesoftware.musix.db.AppDatabase.getDatabase(downloadContext) }
+
+                        val downloadedSongState = remember(currentSong) {
+                            val song = currentSong as? SongItem
+                            if (song != null) {
+                                db.musicDao().getDownloadedSongFlow(song.id)
+                            } else {
+                                kotlinx.coroutines.flow.flowOf(null)
+                            }
+                        }.collectAsState(initial = null)
+
+                        val isDownloaded = downloadedSongState.value?.let { downloadedSong ->
+                            !downloadedSong.localFilePath.isNullOrEmpty() && java.io.File(downloadedSong.localFilePath).exists()
+                        } ?: false
+
+                        val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
+                        val songId = (currentSong as? SongItem)?.id ?: ""
+                        val isDownloading = downloadProgressMap.containsKey(songId)
+                        val downloadProgress = downloadProgressMap[songId] ?: 0f
+
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = when {
+                                isDownloaded -> 2
+                                isDownloading -> 1
+                                else -> 0
+                            },
+                            label = "download"
+                        ) { state ->
+                            when (state) {
+                                2 -> Icon(
+                                    imageVector = Icons.Rounded.DownloadDone,
+                                    contentDescription = "Downloaded",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp).then(consumeClicksModifier)
+                                )
+                                1 -> {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.size(28.dp).then(consumeClicksModifier)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            progress = { downloadProgress },
+                                            modifier = Modifier.fillMaxSize(),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(RoundedCornerShape(1.5.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                        )
+                                    }
+                                }
+                                else -> Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = "Download",
+                                    tint = contentColor.copy(0.8f),
+                                    modifier = Modifier.size(28.dp).clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        val song = currentSong as? SongItem
+                                        if (song != null) {
+                                            PlayerManager.startDownload(song, downloadContext)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Lyrics,
+                            contentDescription = "Lyrics",
+                            tint = if (showLyrics) MaterialTheme.colorScheme.primary else contentColor.copy(0.8f),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null
                                 ) {
-                                    val song = currentSong as? SongItem
-                                    if (song != null) {
-                                        PlayerManager.startDownload(song, downloadContext)
-                                    }
+                                    showLyrics = !showLyrics
                                 }
-                            )
-                        }
-                    }
-                    Icon(Icons.Rounded.Lyrics, contentDescription = "Lyrics", tint = contentColor.copy(0.8f), modifier = Modifier.size(28.dp).then(consumeClicksModifier))
-                    Icon(
-                        Icons.AutoMirrored.Rounded.QueueMusic,
-                        contentDescription = "Up Next",
-                        tint = contentColor.copy(0.8f),
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                showQueue = true
-                            }
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Queue/Playlist Sheet Overlay (Spotify-style)
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showQueue,
-                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
-                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                val queueItems by PlayerManager.queue.collectAsState()
-                val currentIndex by PlayerManager.currentQueueIndex.collectAsState()
-                val playingPlaylist by PlayerManager.currentPlayingPlaylist.collectAsState()
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background)
-                        .systemBarsPadding()
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, _ -> change.consume() }
-                        }
-                ) {
-                    // Header
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        IconButton(onClick = { showQueue = false }) {
-                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = contentColor)
-                        }
-                        Text(
-                            text = "Playing Queue",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = contentColor,
-                            modifier = Modifier.weight(1f)
                         )
-                        if (playingPlaylist != null) {
-                            TextButton(onClick = {
-                                PlayerManager.activePlaylistDetail.value = playingPlaylist
-                                showQueue = false
-                                expanded = false
-                            }) {
-                                Text("View Playlist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Icon(
+                            Icons.AutoMirrored.Rounded.QueueMusic,
+                            contentDescription = "Up Next",
+                            tint = contentColor.copy(0.8f),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    showQueue = true
+                                }
+                        )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                // Queue/Playlist Sheet Overlay (Spotify-style)
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showQueue,
+                    enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
+                    exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val queueItems by PlayerManager.queue.collectAsState()
+                    val currentIndex by PlayerManager.currentQueueIndex.collectAsState()
+                    val playingPlaylist by PlayerManager.currentPlayingPlaylist.collectAsState()
 
-                    // Queue List
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 24.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .systemBarsPadding()
+                            .padding(horizontal = 24.dp, vertical = 16.dp)
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, _ -> change.consume() }
+                            }
                     ) {
-                        item {
+                        // Header
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(onClick = { showQueue = false }) {
+                                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = contentColor)
+                            }
                             Text(
-                                text = "Now Playing",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = contentColor.copy(0.6f),
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                text = "Playing Queue",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColor,
+                                modifier = Modifier.weight(1f)
                             )
-                        }
-
-                        currentSong?.let { song ->
-                            item {
-                                QueueRow(
-                                    song = song,
-                                    isCurrent = true,
-                                    contentColor = contentColor,
-                                    onClick = {}
-                                )
+                            if (playingPlaylist != null) {
+                                TextButton(onClick = {
+                                    PlayerManager.activePlaylistDetail.value = playingPlaylist
+                                    showQueue = false
+                                    expanded = false
+                                }) {
+                                    Text("View Playlist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
-                        item {
-                            Text(
-                                text = "Next In Queue",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = contentColor.copy(0.6f),
-                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                        val nextItems = if (currentIndex < queueItems.size - 1) {
-                            queueItems.subList(currentIndex + 1, queueItems.size)
-                        } else {
-                            emptyList()
-                        }
-
-                        if (nextItems.isEmpty()) {
+                        // Queue List
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
                             item {
                                 Text(
-                                    text = "Queue is empty. Auto-play is enabled.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = contentColor.copy(0.5f),
-                                    modifier = Modifier.padding(vertical = 8.dp)
+                                    text = "Now Playing",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = contentColor.copy(0.6f),
+                                    modifier = Modifier.padding(vertical = 4.dp)
                                 )
                             }
-                        } else {
-                            itemsIndexed(nextItems) { idx, item ->
-                                val actualIndex = currentIndex + 1 + idx
-                                QueueRow(
-                                    song = item,
-                                    isCurrent = false,
-                                    contentColor = contentColor,
-                                    onClick = {
-                                        PlayerManager.playQueue(queueItems, actualIndex)
-                                    }
+
+                            currentSong?.let { song ->
+                                item {
+                                    QueueRow(
+                                        song = song,
+                                        isCurrent = true,
+                                        contentColor = contentColor,
+                                        onClick = {}
+                                    )
+                                }
+                            }
+
+                            item {
+                                Text(
+                                    text = "Next In Queue",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = contentColor.copy(0.6f),
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
                                 )
                             }
+
+                            val nextItems = if (currentIndex < queueItems.size - 1) {
+                                queueItems.subList(currentIndex + 1, queueItems.size)
+                            } else {
+                                emptyList()
+                            }
+
+                            if (nextItems.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Queue is empty. Auto-play is enabled.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = contentColor.copy(0.5f),
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            } else {
+                                itemsIndexed(nextItems) { idx, item ->
+                                    val actualIndex = currentIndex + 1 + idx
+                                    QueueRow(
+                                        song = item,
+                                        isCurrent = false,
+                                        contentColor = contentColor,
+                                        onClick = {
+                                            PlayerManager.playQueue(queueItems, actualIndex)
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
-}
-}
 }
 
 fun formatDuration(ms: Long): String {
@@ -1930,5 +2119,55 @@ fun isNetworkAvailable(context: Context): Boolean {
         activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
         activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
         else -> false
+    }
+}
+
+data class LyricLine(val timestamp: Long, val text: String)
+
+fun parseSyncedLyrics(lyrics: String): List<LyricLine> {
+    val lines = mutableListOf<LyricLine>()
+    val regex = Regex("""\[(\d+):(\d+)\.(\d+)\](.*)""")
+    lyrics.lines().forEach { line ->
+        val match = regex.matchEntire(line.trim())
+        if (match != null) {
+            val min = match.groupValues[1].toLong()
+            val sec = match.groupValues[2].toLong()
+            val msStr = match.groupValues[3]
+            val ms = (msStr.padEnd(3, '0').substring(0, 3)).toLong()
+            val time = min * 60 * 1000 + sec * 1000 + ms
+            val text = match.groupValues[4].trim()
+            lines.add(LyricLine(time, text))
+        }
+    }
+    return lines.sortedBy { it.timestamp }
+}
+
+suspend fun fetchLrcLibLyrics(title: String, artist: String): String? {
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val cleanTitle = title.replace(Regex("""\(.*?\)"""), "").trim()
+            val cleanArtist = artist.split(",", "&", "feat").firstOrNull()?.trim() ?: artist
+            val urlStr = "https://lrclib.net/api/get?artist_name=" + 
+                java.net.URLEncoder.encode(cleanArtist, "UTF-8") + 
+                "&track_name=" + java.net.URLEncoder.encode(cleanTitle, "UTF-8")
+            val url = java.net.URL(urlStr)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("User-Agent", "MusixLyricsClient/1.0")
+            if (conn.responseCode == 200) {
+                val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(responseText)
+                if (json.has("syncedLyrics") && !json.isNull("syncedLyrics")) {
+                    return@withContext json.getString("syncedLyrics")
+                }
+                if (json.has("plainLyrics") && !json.isNull("plainLyrics")) {
+                    return@withContext json.getString("plainLyrics")
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
     }
 }

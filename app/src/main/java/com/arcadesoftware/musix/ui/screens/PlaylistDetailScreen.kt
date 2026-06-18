@@ -4,10 +4,13 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -22,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +44,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.catalog.components.LiquidButton
 import com.music.innertube.YouTube
 import com.music.innertube.models.*
 import io.github.robinpcrd.cupertino.CupertinoActivityIndicator
@@ -50,7 +56,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PlaylistDetailScreen(
     playlistItem: YTItem,
-    backdrop: LayerBackdrop, // Changed to LayerBackdrop to compile with layerBackdrop() modifier
+    backdrop: LayerBackdrop, // Used for background layer and glassmorphism mapping
     onBack: () -> Unit
 ) {
     var songs by remember { mutableStateOf<List<SongItem>?>(null) }
@@ -222,7 +228,6 @@ fun PlaylistDetailScreen(
             }
         } else {
             // Main backdrop layer containing the background image and the list.
-            // Items inside this layer use the passed backdrop parameter.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -538,90 +543,101 @@ fun PlaylistDetailScreen(
             }
         }
 
-        // Custom TopAppBar with Glassmorphism blur (positioned OUTSIDE the backdrop layer to prevent recursion)
+        // Three Separate Floating Liquid Glass Capsule Tiles (Positioned OUTSIDE the backdrop layer to prevent recursion)
         Box(
             modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxWidth()
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { RectangleShape },
-                    effects = {
-                        vibrancy()
-                        blur(if (showMiniTitle) 20f.dp.toPx() else 0f)
-                    }
-                )
-                .background(
-                    if (showMiniTitle) {
-                        MaterialTheme.colorScheme.background.copy(alpha = 0.75f)
-                    } else {
-                        Color.Transparent
-                    }
-                )
+                .height(48.dp)
         ) {
-            Box(modifier = Modifier.statusBarsPadding()) {
-                TopAppBar(
-                    title = {
-                        AnimatedVisibility(
-                            visible = showMiniTitle,
-                            enter = fadeIn() + slideInVertically { it / 2 },
-                            exit = fadeOut() + slideOutVertically { it / 2 }
-                        ) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = appleRed
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            val pType = if (playlistItem is AlbumItem) "ALBUM" else "PLAYLIST"
-                            val willBeLiked = !isLiked
-                            LikedPlaylistsManager.toggleLikePlaylist(
-                                context,
-                                LikedPlaylistsManager.LikedPlaylist(
-                                    id = playlistItem.id,
-                                    title = title,
-                                    thumbnail = thumbnail,
-                                    type = pType,
-                                    subtitle = subtitle
-                                )
-                            )
-                            isLiked = willBeLiked
-                            if (willBeLiked) {
-                                com.arcadesoftware.musix.components.HeartAnimManager.trigger()
-                            }
-                        }) {
-                            Icon(
-                                imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                contentDescription = "Like Playlist",
-                                tint = appleRed
-                            )
-                        }
-                        IconButton(onClick = { /* Action Menu */ }) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreHoriz,
-                                contentDescription = "More Options",
-                                tint = appleRed
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground
+            // Capsule 1: Back Button Pill (using LiquidButton) - Perfect circle
+            Box(
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                LiquidButton(
+                    onClick = onBack,
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = appleRed,
+                        modifier = Modifier.size(22.dp)
                     )
-                )
+                }
+            }
+
+            // Capsule 2: Centered dynamic scrolling Title Pill (Dynamic Island styled, perfectly centered horizontally)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showMiniTitle,
+                    enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
+                ) {
+                    LiquidButton(
+                        onClick = {},
+                        backdrop = backdrop,
+                        isInteractive = false, // Static information display
+                        surfaceColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                        modifier = Modifier.wrapContentWidth()
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+            }
+
+            // Capsule 3: Actions Pill - Heart Like Button directly interactive and circular
+            Box(
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                LiquidButton(
+                    onClick = {
+                        val pType = if (playlistItem is AlbumItem) "ALBUM" else "PLAYLIST"
+                        val willBeLiked = !isLiked
+                        LikedPlaylistsManager.toggleLikePlaylist(
+                            context,
+                            LikedPlaylistsManager.LikedPlaylist(
+                                id = playlistItem.id,
+                                title = title,
+                                thumbnail = thumbnail,
+                                type = pType,
+                                subtitle = subtitle
+                            )
+                        )
+                        isLiked = willBeLiked
+                        if (willBeLiked) {
+                            com.arcadesoftware.musix.components.HeartAnimManager.trigger()
+                        }
+                    },
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = "Like Playlist",
+                        tint = appleRed,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

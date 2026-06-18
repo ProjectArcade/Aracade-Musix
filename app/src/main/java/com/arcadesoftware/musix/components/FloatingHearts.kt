@@ -30,11 +30,26 @@ object HeartAnimManager {
 
 data class FloatingHeart(
     val id: Long,
-    val startXFraction: Float, // 0.2f to 0.8f
+    val startXFraction: Float, // 0.15f to 0.85f
     val scale: Float,
-    val duration: Int,
+    val duration: Int, // Represents speed (float duration)
     val driftAmountPx: Float,
-    val emoji: String
+    val emoji: String,
+    val rotation: Float // Random rotation tilt option
+)
+
+private val loveEmojis = listOf(
+    // Hearts
+    "🩷", "❤️", "🧡", "💛", "💚", "🩵", "💙", "💜",
+    "🖤", "🤍", "🤎", "❤️🔥", "❤️🩹",
+    "💖", "💗", "💓", "💞", "💕", "💝", "💘", "💟", "❣️",
+
+    // Love faces
+    "🥰", "😍", "😘", "🤩",
+
+    // Cute affection
+    "😊", "☺️", "🤗", "🫶", "💋",
+    "💏", "💐", "💌", "🎀","🎉"
 )
 
 @Composable
@@ -42,14 +57,10 @@ fun FloatingHeartsContainer(modifier: Modifier = Modifier) {
     val hearts = remember { mutableStateListOf<FloatingHeart>() }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val heartEmojis = remember {
-        listOf("❤️", "💖", "💝", "💕", "💗", "💓", "💞", "💟", "❣️", "💘")
-    }
-
     LaunchedEffect(Unit) {
         HeartAnimManager.triggerEvents.collect {
             if (containerSize.width > 0 && containerSize.height > 0) {
-                // Spawn a large bundle of more than 20 hearts (22 to 32 hearts)
+                // Spawn a large group of 22 to 32 hearts (more than 20)
                 val spawnCount = Random.nextInt(22, 33)
                 val now = System.currentTimeMillis()
                 for (i in 0 until spawnCount) {
@@ -57,10 +68,11 @@ fun FloatingHeartsContainer(modifier: Modifier = Modifier) {
                         FloatingHeart(
                             id = now + i + Random.nextLong(100000),
                             startXFraction = Random.nextFloat() * 0.7f + 0.15f, // center 70% of screen width
-                            scale = Random.nextFloat() * 0.6f + 0.7f, // scale between 0.7 and 1.3
-                            duration = Random.nextInt(2800, 3800), // slightly slower float for better view
-                            driftAmountPx = (Random.nextFloat() * 70f + 50f) * (if (Random.nextBoolean()) 1f else -1f),
-                            emoji = heartEmojis.random()
+                            scale = Random.nextFloat() * 0.8f + 0.6f, // random scale size option (0.6x to 1.4x)
+                            duration = Random.nextInt(2400, 3500), // Speed: highly dynamic float duration (1.2s to 2.4s)
+                            driftAmountPx = (Random.nextFloat() * 80f + 40f) * (if (Random.nextBoolean()) 1f else -1f),
+                            emoji = loveEmojis.random(),
+                            rotation = Random.nextFloat() * 50f - 25f // random rotation option (-25 to 25 degrees)
                         )
                     )
                 }
@@ -118,6 +130,7 @@ fun HeartParticle(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                rotationZ = heart.rotation
                 this.alpha = alpha
             }
     )

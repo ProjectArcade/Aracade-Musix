@@ -10,6 +10,9 @@ import androidx.compose.foundation.lazy.items
 
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
@@ -368,14 +371,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     item {
                         HomeSection(title = section.title) {
                             if (index == 0) {
-                                val pagerState = rememberPagerState(pageCount = { section.items.size })
-                                HorizontalPager(
-                                    state = pagerState,
-                                    contentPadding = PaddingValues(horizontal = 16.dp),
-                                    pageSpacing = 16.dp
-                                ) { page ->
-                                    FeaturedCard(section.items[page], modifier = Modifier.fillMaxWidth())
-                                }
+                                SwipeableCardStack(items = section.items)
                             } else {
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -471,6 +467,127 @@ fun HomeSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
+fun SwipeableCardStack(
+    items: List<YTItem>,
+    modifier: Modifier = Modifier
+) {
+    if (items.isEmpty()) return
+
+    var currentIndex by remember { mutableStateOf(0) }
+    val activeIndex = currentIndex % items.size
+    val coroutineScope = rememberCoroutineScope()
+    
+    val swipeX = remember { Animatable(0f) }
+    val swipeY = remember { Animatable(0f) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(380.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // Show up to 3 cards in the stack
+        for (i in 2 downTo 0) {
+            val cardIndex = (activeIndex + i) % items.size
+            val isTopCard = i == 0
+
+            // Background card styling for stack depth
+            val scale = when (i) {
+                0 -> 1f
+                1 -> 0.95f
+                2 -> 0.90f
+                else -> 0.85f
+            }
+            
+            val offsetY = when (i) {
+                0 -> 0.dp
+                1 -> 12.dp
+                2 -> 24.dp
+                else -> 36.dp
+            }
+
+            val cardItem = items[cardIndex]
+
+            // Apply swipe dynamics only to the top card in the stack
+            val dragModifier = if (isTopCard) {
+                Modifier
+                    .offset(
+                        x = (swipeX.value / 3f).dp,
+                        y = (swipeY.value / 3f).dp
+                    )
+                    .graphicsLayer(
+                        rotationZ = swipeX.value / 20f
+                    )
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = {
+                                coroutineScope.launch {
+                                    val targetX = swipeX.value
+                                    if (kotlin.math.abs(targetX) > 300f) {
+                                        // Swipe card off screen
+                                        val swipeDirection = if (targetX > 0) 1000f else -1000f
+                                        val animJob1 = launch {
+                                            swipeX.animateTo(
+                                                targetValue = swipeDirection,
+                                                animationSpec = tween(durationMillis = 300)
+                                            )
+                                        }
+                                        val animJob2 = launch {
+                                            swipeY.animateTo(
+                                                targetValue = swipeY.value * 2f,
+                                                animationSpec = tween(durationMillis = 300)
+                                            )
+                                        }
+                                        animJob1.join()
+                                        animJob2.join()
+                                        
+                                        // Advance index and reset positions instantly
+                                        currentIndex++
+                                        swipeX.snapTo(0f)
+                                        swipeY.snapTo(0f)
+                                    } else {
+                                        // Snap card back to center
+                                        val animJobX = launch { swipeX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+                                        val animJobY = launch { swipeY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+                                        animJobX.join()
+                                        animJobY.join()
+                                    }
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                coroutineScope.launch {
+                                    swipeX.snapTo(swipeX.value + dragAmount.x)
+                                    swipeY.snapTo(swipeY.value + dragAmount.y)
+                                }
+                            }
+                        )
+                    }
+            } else {
+                // Background cards scale up and float up relative to swipe progression of the top card
+                val swipeProgress = kotlin.math.min(1f, kotlin.math.abs(swipeX.value) / 400f)
+                val targetScale = scale + (0.05f * swipeProgress)
+                val targetOffsetY = offsetY - (12.dp * swipeProgress)
+                Modifier
+                    .graphicsLayer(
+                        scaleX = targetScale,
+                        scaleY = targetScale
+                    )
+                    .offset(y = targetOffsetY)
+            }
+
+            FeaturedCard(
+                item = cardItem,
+                modifier = Modifier
+                    .then(dragModifier)
+                    .width(300.dp)
+                    .height(340.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun FeaturedCard(item: YTItem, modifier: Modifier = Modifier) {
     val title = when (item) {
         is SongItem -> item.title
@@ -495,9 +612,7 @@ fun FeaturedCard(item: YTItem, modifier: Modifier = Modifier) {
     }
 
     Box(
-        modifier = Modifier
-            .width(320.dp)
-            .height(360.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .clickable { PlayerManager.play(item) }
     ) {

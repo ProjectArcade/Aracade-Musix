@@ -87,6 +87,7 @@ object PlayerManager {
     private var currentMetadataBitmap: android.graphics.Bitmap? = null
     var exoPlayer: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    val downloadProgressMap = MutableStateFlow<Map<String, Float>>(emptyMap())
 
     private var simpleCache: androidx.media3.datasource.cache.SimpleCache? = null
 
@@ -390,6 +391,41 @@ object PlayerManager {
         } catch (e: Exception) {
             android.util.Log.e(TAG, "Download failed: ${e.message}", e)
             null
+        }
+    }
+
+    fun startDownload(song: SongItem, context: android.content.Context) {
+        val songId = song.id
+        synchronized(downloadProgressMap) {
+            if (downloadProgressMap.value.containsKey(songId)) return
+            downloadProgressMap.value = downloadProgressMap.value + (songId to 0f)
+        }
+        scope.launch(Dispatchers.IO) {
+            val destFile = java.io.File(
+                context.applicationContext.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC),
+                "$songId.m4a"
+            )
+            val localPath = downloadAudio(song, destFile) { progressVal ->
+                synchronized(downloadProgressMap) {
+                    downloadProgressMap.value = downloadProgressMap.value + (songId to progressVal)
+                }
+            }
+            if (localPath != null) {
+                val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context.applicationContext)
+                db.musicDao().insertDownloadedSong(
+                    com.arcadesoftware.musix.db.entities.DownloadedSongEntity(
+                        id = song.id,
+                        title = song.title,
+                        artistName = song.artists.firstOrNull()?.name ?: "",
+                        artistId = song.artists.firstOrNull()?.id,
+                        thumbnailUrl = song.thumbnail,
+                        localFilePath = localPath
+                    )
+                )
+            }
+            synchronized(downloadProgressMap) {
+                downloadProgressMap.value = downloadProgressMap.value - songId
+            }
         }
     }
 
@@ -1562,27 +1598,32 @@ fun MiniPlayer(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Add to Playlist", tint = contentColor.copy(0.8f), modifier = Modifier.size(28.dp).then(consumeClicksModifier))
-                    var isDownloaded by remember { mutableStateOf(false) }
-                    var isDownloading by remember { mutableStateOf(false) }
-                    var downloadProgress by remember { mutableStateOf(0f) }
-                    val downloadScope = rememberCoroutineScope()
+                    Icon(
+                        imageVector = Icons.Rounded.AddCircleOutline,
+                        contentDescription = "Add to Playlist",
+                        tint = contentColor.copy(0.8f),
+                        modifier = Modifier.size(28.dp).then(consumeClicksModifier)
+                    )
                     val downloadContext = LocalContext.current
+                    val db = remember(downloadContext) { com.arcadesoftware.musix.db.AppDatabase.getDatabase(downloadContext) }
 
-                    LaunchedEffect(currentSong) {
+                    val downloadedSongState = remember(currentSong) {
                         val song = currentSong as? SongItem
                         if (song != null) {
-                            isDownloading = false
-                            downloadProgress = 0f
-                            val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(downloadContext)
-                            val downloadedSong = withContext(Dispatchers.IO) {
-                                db.musicDao().getDownloadedSong(song.id)
-                            }
-                            isDownloaded = (downloadedSong != null && !downloadedSong.localFilePath.isNullOrEmpty() && java.io.File(downloadedSong.localFilePath).exists())
+                            db.musicDao().getDownloadedSongFlow(song.id)
                         } else {
-                            isDownloaded = false
+                            kotlinx.coroutines.flow.flowOf(null)
                         }
-                    }
+                    }.collectAsState(initial = null)
+
+                    val isDownloaded = downloadedSongState.value?.let { downloadedSong ->
+                        !downloadedSong.localFilePath.isNullOrEmpty() && java.io.File(downloadedSong.localFilePath).exists()
+                    } ?: false
+
+                    val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
+                    val songId = (currentSong as? SongItem)?.id ?: ""
+                    val isDownloading = downloadProgressMap.containsKey(songId)
+                    val downloadProgress = downloadProgressMap[songId] ?: 0f
 
                     androidx.compose.animation.AnimatedContent(
                         targetState = when {
@@ -1605,7 +1646,7 @@ fun MiniPlayer(
                                     modifier = Modifier.size(28.dp).then(consumeClicksModifier)
                                 ) {
                                     CircularProgressIndicator(
-                                        progress = downloadProgress,
+                                        progress = { downloadProgress },
                                         modifier = Modifier.fillMaxSize(),
                                         strokeWidth = 2.dp,
                                         color = MaterialTheme.colorScheme.primary,
@@ -1627,30 +1668,9 @@ fun MiniPlayer(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null
                                 ) {
-                                    downloadScope.launch(Dispatchers.IO) {
-                                        val song = currentSong as? SongItem ?: return@launch
-                                        isDownloading = true
-                                        downloadProgress = 0f
-                                        val destFile = java.io.File(
-                                            downloadContext.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC),
-                                            "${song.id}.m4a"
-                                        )
-                                        val localPath = PlayerManager.downloadAudio(song, destFile) { progressVal ->
-                                            downloadProgress = progressVal
-                                        }
-                                        val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(downloadContext)
-                                        db.musicDao().insertDownloadedSong(
-                                            com.arcadesoftware.musix.db.entities.DownloadedSongEntity(
-                                                id = song.id,
-                                                title = song.title,
-                                                artistName = song.artists.firstOrNull()?.name ?: "",
-                                                artistId = song.artists.firstOrNull()?.id,
-                                                thumbnailUrl = song.thumbnail,
-                                                localFilePath = localPath ?: ""
-                                            )
-                                        )
-                                        isDownloading = false
-                                        isDownloaded = (localPath != null)
+                                    val song = currentSong as? SongItem
+                                    if (song != null) {
+                                        PlayerManager.startDownload(song, downloadContext)
                                     }
                                 }
                             )

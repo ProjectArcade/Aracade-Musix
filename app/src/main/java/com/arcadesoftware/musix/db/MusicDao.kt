@@ -33,6 +33,9 @@ interface MusicDao {
     @Query("SELECT * FROM downloaded_songs WHERE id = :songId")
     fun getDownloadedSong(songId: String): DownloadedSongEntity?
 
+    @Query("SELECT * FROM downloaded_songs WHERE id = :songId")
+    fun getDownloadedSongFlow(songId: String): Flow<DownloadedSongEntity?>
+
     @Query("DELETE FROM downloaded_songs WHERE id = :songId")
     fun removeDownloadedSong(songId: String)
 

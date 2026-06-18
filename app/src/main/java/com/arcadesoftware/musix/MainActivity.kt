@@ -706,7 +706,7 @@ object PlayerManager {
                         }
                     }
                 }
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(250)
             }
         }
     }
@@ -1595,14 +1595,30 @@ fun MiniPlayer(
                                 ) {
                                     itemsIndexed(lyricsLines) { index, line ->
                                         val isActive = index == activeIndex
-                                        val alpha by androidx.compose.animation.core.animateFloatAsState(if (isActive) 1f else 0.4f)
-                                        val scale by androidx.compose.animation.core.animateFloatAsState(if (isActive) 1.05f else 1f)
+                                        val isPast = index < activeIndex
+                                        // Spotify-style: active = white, past/future = grey
+                                        val targetAlpha = when {
+                                            isActive -> 1f
+                                            isPast -> 0.35f
+                                            else -> 0.5f
+                                        }
+                                        val alpha by androidx.compose.animation.core.animateFloatAsState(
+                                            targetValue = targetAlpha,
+                                            animationSpec = androidx.compose.animation.core.tween(300)
+                                        )
+                                        val scale by androidx.compose.animation.core.animateFloatAsState(
+                                            targetValue = if (isActive) 1.08f else 1f,
+                                            animationSpec = androidx.compose.animation.core.spring(
+                                                dampingRatio = 0.6f,
+                                                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                            )
+                                        )
                                         Text(
                                             text = line.text,
-                                            color = contentColor.copy(alpha = alpha),
+                                            color = if (isActive) Color.White else Color.White.copy(alpha = alpha),
                                             style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold,
-                                                fontSize = if (isActive) 22.sp else 18.sp,
+                                                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                fontSize = if (isActive) 22.sp else 17.sp,
                                                 textAlign = TextAlign.Center,
                                                 lineHeight = 30.sp
                                             ),
@@ -1715,21 +1731,23 @@ fun MiniPlayer(
                     val sliderValue = sliderDragValue
                         ?: (if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f)
 
-                    key(Unit) {
-                        com.arcadesoftware.musix.components.LiquidSlider(
-                            value = { sliderValue },
-                            onValueChange = { sliderDragValue = it },
-                            onValueChangeFinished = {
-                                sliderDragValue?.let { PlayerManager.seekTo(it) }
-                                sliderDragValue = null
-                            },
-                            valueRange = 0f..1f,
-                            visibilityThreshold = 0.001f,
-                            backdrop = backdrop,
-                            accentColor = contentColor,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    com.arcadesoftware.musix.components.LiquidSlider(
+                        value = { sliderValue },
+                        onValueChange = { newVal ->
+                            // Live drag: update thumb display immediately without triggering position poll race
+                            sliderDragValue = newVal
+                        },
+                        onValueChangeFinished = {
+                            // Seek once when user lifts finger
+                            sliderDragValue?.let { PlayerManager.seekTo(it) }
+                            sliderDragValue = null
+                        },
+                        valueRange = 0f..1f,
+                        visibilityThreshold = 0.001f,
+                        backdrop = backdrop,
+                        accentColor = contentColor,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(4.dp))
 

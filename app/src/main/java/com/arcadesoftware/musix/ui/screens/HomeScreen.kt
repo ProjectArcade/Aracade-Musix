@@ -347,14 +347,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
             if (isLoading && homePage?.sections.isNullOrEmpty()) {
                 item {
-                    SpeedDialSkeleton()
-                }
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    FeaturedStackSkeleton()
+                    HomeSectionSkeleton(isFeatured = true)
                 }
                 items(2) {
-                    HomeSectionSkeleton()
+                    HomeSectionSkeleton(isFeatured = false)
                 }
             } else {
                 if (isLoading) {
@@ -434,95 +430,25 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 }
 
 @Composable
-fun SpeedDialSkeleton() {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(horizontal = 16.dp)
-    ) {
-        for (i in 0 until 3) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .shimmerEffect()
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .shimmerEffect()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FeaturedStackSkeleton() {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.padding(horizontal = 16.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(150.dp)
-                .height(24.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .shimmerEffect()
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(380.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Background card 2 (bottom)
-            Box(
-                modifier = Modifier
-                    .graphicsLayer(scaleX = 0.88f, scaleY = 0.88f, rotationZ = -4f)
-                    .offset(y = (-32).dp)
-                    .width(300.dp)
-                    .height(340.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .shimmerEffect()
-            )
-            // Background card 1 (middle)
-            Box(
-                modifier = Modifier
-                    .graphicsLayer(scaleX = 0.94f, scaleY = 0.94f, rotationZ = 4f)
-                    .offset(y = (-16).dp)
-                    .width(300.dp)
-                    .height(340.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .shimmerEffect()
-            )
-            // Top card
-            Box(
-                modifier = Modifier
-                    .width(300.dp)
-                    .height(340.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .shimmerEffect()
-            )
-        }
-    }
-}
-
-@Composable
-fun HomeSectionSkeleton() {
+fun HomeSectionSkeleton(isFeatured: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
         Box(modifier = Modifier.width(150.dp).height(24.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(4) {
-                Column(modifier = Modifier.width(160.dp)) {
-                    Box(modifier = Modifier.size(160.dp).clip(RoundedCornerShape(12.dp)).shimmerEffect())
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(modifier = Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(modifier = Modifier.fillMaxWidth(0.6f).height(12.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+        if (isFeatured) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                items(2) {
+                    Box(modifier = Modifier.width(320.dp).height(360.dp).clip(RoundedCornerShape(24.dp)).shimmerEffect())
+                }
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                items(4) {
+                    Column(modifier = Modifier.width(160.dp)) {
+                        Box(modifier = Modifier.size(160.dp).clip(RoundedCornerShape(12.dp)).shimmerEffect())
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(modifier = Modifier.fillMaxWidth(0.6f).height(12.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+                    }
                 }
             }
         }

@@ -530,7 +530,7 @@ fun SwipeableCardStack(
                             0 -> { // Previous card coming in
                                 scale = 0.94f + 0.06f * swipeProgress
                                 offsetY = 0f
-                                rotation = -12f * (1f - swipeProgress)
+                                rotation = 0f
                                 offsetX = -340f * (1f - swipeProgress)
                             }
                             1 -> { // Current card retreating to middle
@@ -552,7 +552,7 @@ fun SwipeableCardStack(
                             0 -> { // Current card swiping out
                                 scale = 1f
                                 offsetY = swipeY.value / 3f
-                                rotation = swipeX.value / 20f
+                                rotation = 0f
                                 offsetX = swipeX.value / 3f
                             }
                             1 -> { // Next card scaling up to front

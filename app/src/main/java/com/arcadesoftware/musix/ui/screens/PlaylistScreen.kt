@@ -98,6 +98,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = viewModel()) {
     var showAddToPlaylistForSong by remember { mutableStateOf<DownloadedSongEntity?>(null) }
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
+    var selectedUserPlaylist by remember { mutableStateOf<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null) }
 
     // Refresh liked data when playlist detail closes
     LaunchedEffect(activePlaylistDetail) {
@@ -265,6 +266,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = viewModel()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { selectedUserPlaylist = playlist }
                             .padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -559,8 +561,271 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = viewModel()) {
             onDismiss = { showAddToPlaylistForSong = null }
         )
     }
+
+    // ── User Playlist Detail Overlay ──────────────────────────────────────────
+    androidx.compose.animation.AnimatedVisibility(
+        visible = selectedUserPlaylist != null,
+        enter = androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }),
+        exit = androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        selectedUserPlaylist?.let { playlist ->
+            UserPlaylistDetailScreen(
+                playlist = playlist,
+                onBack = { selectedUserPlaylist = null }
+            )
+        }
+    }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UserPlaylistDetailScreen(
+    playlist: com.arcadesoftware.musix.db.entities.PlaylistEntity,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val db = remember(context) { AppDatabase.getDatabase(context) }
+    val songs by db.musicDao().getSongsForPlaylist(playlist.id).collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 160.dp)
+        ) {
+            // Hero header
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(0.6f),
+                                    MaterialTheme.colorScheme.background
+                                )
+                            )
+                        )
+                ) {
+                    // Mosaic of thumbnails
+                    if (songs.size >= 4) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Row(modifier = Modifier.weight(1f)) {
+                                listOf(songs[0], songs[1]).forEach { s ->
+                                    AsyncImage(
+                                        model = s.thumbnailUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.weight(1f).fillMaxHeight()
+                                    )
+                                }
+                            }
+                            Row(modifier = Modifier.weight(1f)) {
+                                listOf(songs[2], songs[3]).forEach { s ->
+                                    AsyncImage(
+                                        model = s.thumbnailUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.weight(1f).fillMaxHeight()
+                                    )
+                                }
+                            }
+                        }
+                    } else if (songs.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.primary.copy(0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.QueueMusic,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(80.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.QueueMusic, contentDescription = null,
+                                modifier = Modifier.size(80.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.4f))
+                        }
+                    }
+
+                    // Gradient overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background)))
+                    )
+
+                    // Title at bottom
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(20.dp)
+                    ) {
+                        Text(
+                            playlist.name,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            "${songs.size} songs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Back button
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .statusBarsPadding()
+                            .padding(8.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface.copy(0.7f))
+                    ) {
+                        Icon(
+                            Icons.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            // Play All / Shuffle row
+            if (songs.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { PlayerManager.playQueue(songs.map { it.toSongItem() }, 0) },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Play All", fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = { PlayerManager.playQueue(songs.shuffled().map { it.toSongItem() }, 0) },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Shuffle", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            if (songs.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.PlaylistAdd, contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(0.3f))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("No songs yet", color = MaterialTheme.colorScheme.onSurface.copy(0.5f))
+                            Text("Add songs using the + button in the player",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(0.35f))
+                        }
+                    }
+                }
+            }
+
+            itemsIndexed(songs) { index, songEntity ->
+                val isPlaying = PlayerManager.currentSong.collectAsState().value?.id == songEntity.id
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { PlayerManager.playQueue(songs.map { it.toSongItem() }, index) }
+                        .background(if (isPlaying) MaterialTheme.colorScheme.primary.copy(0.07f) else Color.Transparent)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+                        if (isPlaying) MusicBarsAnimation()
+                        else Text("${index + 1}", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(0.4f))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    AsyncImage(
+                        model = songEntity.thumbnailUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp))
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            songEntity.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            songEntity.artistName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                    // Remove from playlist
+                    IconButton(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                db.musicDao().removeSongFromPlaylist(playlist.id, songEntity.id)
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.RemoveCircleOutline,
+                            contentDescription = "Remove",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(0.35f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                if (index < songs.size - 1) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 84.dp, end = 20.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f),
+                        thickness = 0.5.dp
+                    )
+                }
+            }
+        }
+    }
+}
 
 // ─── Reusable composables ────────────────────────────────────────────────────
 

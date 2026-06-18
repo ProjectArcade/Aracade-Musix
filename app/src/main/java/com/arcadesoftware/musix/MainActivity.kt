@@ -785,47 +785,44 @@ object PlayerManager {
         updatePlaybackState()
         showOrUpdateNotification()
 
-        if (song.thumbnail != lastThumbnailUrl) {
+        if (song.thumbnail.isNotEmpty() && song.thumbnail != lastThumbnailUrl) {
             lastThumbnailUrl = song.thumbnail
-            val highResThumbnail = song.thumbnail.replace(Regex("w\\d+-h\\d+.*"), "w1080-h1080-l90-rj")
-            scope.launch {
+            scope.launch(Dispatchers.IO) {
                 val context = appContext ?: return@launch
                 var bitmap: android.graphics.Bitmap? = null
-                
-                // Try high-res thumbnail first
-                try {
-                    val loader = coil.ImageLoader(context)
-                    val request = coil.request.ImageRequest.Builder(context)
-                        .data(highResThumbnail)
-                        .allowHardware(false)
-                        .build()
-                    val result = loader.execute(request)
-                    val drawable = result.drawable
-                    if (drawable is android.graphics.drawable.BitmapDrawable) {
-                        bitmap = drawable.bitmap
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w(TAG, "Failed to load high-res artwork, trying fallback: ${e.message}")
-                }
-                
-                // Fallback to normal thumbnail if high-res failed
-                if (bitmap == null) {
+
+                // Build URL list: try high-res first, then original
+                val thumbUrl = song.thumbnail
+                val highResUrl = if (thumbUrl.contains("=w") || thumbUrl.contains("-w")) {
+                    thumbUrl.replace(Regex("=w\\d+-h\\d+.*"), "=w1080-h1080")
+                         .replace(Regex("w\\d+-h\\d+(-s\\d+)?(-c\\d+)?(-k.*)?$"), "w1080-h1080-l90-rj")
+                } else thumbUrl
+
+                for (url in listOf(highResUrl, thumbUrl)) {
+                    if (bitmap != null) break
                     try {
-                        val loader = coil.ImageLoader(context)
-                        val request = coil.request.ImageRequest.Builder(context)
-                            .data(song.thumbnail)
-                            .allowHardware(false)
+                        val client = okhttp3.OkHttpClient.Builder()
+                            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                             .build()
-                        val result = loader.execute(request)
-                        val drawable = result.drawable
-                        if (drawable is android.graphics.drawable.BitmapDrawable) {
-                            bitmap = drawable.bitmap
+                        val request = okhttp3.Request.Builder()
+                            .url(url)
+                            .addHeader("User-Agent", "Mozilla/5.0")
+                            .addHeader("Referer", "https://www.youtube.com/")
+                            .build()
+                        val response = client.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val bytes = response.body?.bytes()
+                            if (bytes != null) {
+                                bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            }
                         }
+                        response.close()
                     } catch (e: Exception) {
-                        android.util.Log.e(TAG, "Failed to load fallback artwork: ${e.message}")
+                        android.util.Log.w(TAG, "Failed to load art from $url: ${e.message}")
                     }
                 }
-                
+
                 bitmap?.let { b ->
                     withContext(Dispatchers.Main) {
                         val activeSong = currentSong.value as? SongItem

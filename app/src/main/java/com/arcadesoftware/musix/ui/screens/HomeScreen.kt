@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -662,23 +663,22 @@ fun FeaturedCard(item: YTItem, modifier: Modifier = Modifier) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        if (item is PlaylistItem) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.PlaylistPlay,
-                    contentDescription = "Playlist",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+        val isPlaylist = item is PlaylistItem
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .size(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaylist) Icons.AutoMirrored.Rounded.PlaylistPlay else Icons.Rounded.MusicNote,
+                contentDescription = if (isPlaylist) "Playlist" else "Music",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+            )
         }
         Box(
             modifier = Modifier
@@ -755,23 +755,22 @@ fun SquareCard(item: YTItem) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            if (item is PlaylistItem) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black.copy(alpha = 0.6f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.PlaylistPlay,
-                        contentDescription = "Playlist",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+            val isPlaylist = item is PlaylistItem
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaylist) Icons.AutoMirrored.Rounded.PlaylistPlay else Icons.Rounded.MusicNote,
+                    contentDescription = if (isPlaylist) "Playlist" else "Music",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

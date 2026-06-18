@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.arcadesoftware.musix.PlayerManager
+import com.arcadesoftware.musix.components.LiquidButton
+import com.kyant.backdrop.Backdrop
 import com.music.innertube.YouTube
 import com.music.innertube.models.*
 import io.github.robinpcrd.cupertino.CupertinoActivityIndicator
@@ -38,6 +40,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PlaylistDetailScreen(
     playlistItem: YTItem,
+    backdrop: Backdrop,
     onBack: () -> Unit
 ) {
     var songs by remember { mutableStateOf<List<SongItem>?>(null) }
@@ -237,7 +240,7 @@ fun PlaylistDetailScreen(
                                 .padding(horizontal = 24.dp, vertical = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Button(
+                            LiquidButton(
                                 onClick = {
                                     songs?.let { songList ->
                                         if (songList.isNotEmpty()) {
@@ -246,20 +249,20 @@ fun PlaylistDetailScreen(
                                         }
                                     }
                                 },
+                                backdrop = backdrop,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(52.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
+                                tint = MaterialTheme.colorScheme.primary,
+                                isInteractive = true,
+                                shape = { RoundedCornerShape(16.dp) }
                             ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
+                                Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play All", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Play All", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimary)
                             }
 
-                            OutlinedButton(
+                            LiquidButton(
                                 onClick = {
                                     songs?.let { songList ->
                                         if (songList.isNotEmpty()) {
@@ -268,15 +271,17 @@ fun PlaylistDetailScreen(
                                         }
                                     }
                                 },
+                                backdrop = backdrop,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(52.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.5.dp)
+                                tint = MaterialTheme.colorScheme.surfaceVariant,
+                                isInteractive = true,
+                                shape = { RoundedCornerShape(16.dp) }
                             ) {
-                                Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Shuffle", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                                Text("Shuffle", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

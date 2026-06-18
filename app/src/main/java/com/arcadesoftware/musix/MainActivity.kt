@@ -983,6 +983,7 @@ fun MainScreen() {
             activePlaylistDetail?.let { playlistItem ->
                 PlaylistDetailScreen(
                     playlistItem = playlistItem,
+                    backdrop = backdrop,
                     onBack = { PlayerManager.activePlaylistDetail.value = null }
                 )
             }

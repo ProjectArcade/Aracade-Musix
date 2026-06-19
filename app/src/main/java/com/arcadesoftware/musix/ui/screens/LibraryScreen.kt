@@ -929,7 +929,11 @@ fun ArtistLibraryDetailScreen(
                         mutableStateOf(LikedArtistsManager.isArtistLiked(context, artist.id)) 
                     }
                     IconButton(onClick = {
-                        isLiked = LikedArtistsManager.toggleLikeArtist(context, artist.id, artist.name, artist.thumbnailUrl)
+                        val willBeLiked = LikedArtistsManager.toggleLikeArtist(context, artist.id, artist.name, artist.thumbnailUrl)
+                        isLiked = willBeLiked
+                        if (willBeLiked) {
+                            com.arcadesoftware.musix.components.HeartAnimManager.trigger()
+                        }
                         onLikedArtistsChanged()
                     }) {
                         Icon(

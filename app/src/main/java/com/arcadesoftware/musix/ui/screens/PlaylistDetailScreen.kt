@@ -654,22 +654,44 @@ fun PlaylistDetailScreen(
                         modifier = Modifier.size(48.dp)
                     ) {
                         if (isAnyDownloading) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    progress = { playlistProgress },
-                                    modifier = Modifier.fillMaxSize(),
-                                    strokeWidth = 2.dp,
-                                    color = appleRed,
-                                    trackColor = appleRed.copy(alpha = 0.15f)
+                            androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+                                val sizePx = size.minDimension
+                                val strokeWidthPx = 2.dp.toPx()
+                                val radius = (sizePx - strokeWidthPx) / 2f
+                                val centerOffset = androidx.compose.ui.geometry.Offset(sizePx / 2f, sizePx / 2f)
+
+                                // Draw track
+                                drawCircle(
+                                    color = appleRed.copy(alpha = 0.15f),
+                                    radius = radius,
+                                    center = centerOffset,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidthPx)
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(RoundedCornerShape(1.5.dp))
-                                        .background(appleRed)
+
+                                // Draw progress arc
+                                drawArc(
+                                    color = appleRed,
+                                    startAngle = -90f,
+                                    sweepAngle = playlistProgress * 360f,
+                                    useCenter = false,
+                                    topLeft = androidx.compose.ui.geometry.Offset(strokeWidthPx / 2f, strokeWidthPx / 2f),
+                                    size = androidx.compose.ui.geometry.Size(sizePx - strokeWidthPx, sizePx - strokeWidthPx),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = strokeWidthPx,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    )
+                                )
+
+                                // Draw stop/pause square in the center
+                                val squareSize = 7.dp.toPx()
+                                val squareLeft = (sizePx - squareSize) / 2f
+                                val squareTop = (sizePx - squareSize) / 2f
+                                val cornerRadiusPx = 1.2.dp.toPx()
+                                drawRoundRect(
+                                    color = appleRed,
+                                    topLeft = androidx.compose.ui.geometry.Offset(squareLeft, squareTop),
+                                    size = androidx.compose.ui.geometry.Size(squareSize, squareSize),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx)
                                 )
                             }
                         } else if (downloadedCount == totalCount) {

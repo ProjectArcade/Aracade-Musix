@@ -525,6 +525,7 @@ object PlayerManager {
                     val buffer = ByteArray(256 * 1024)
                     var bytes = input.read(buffer)
                     while (bytes >= 0) {
+                        if (coroutineContext[kotlinx.coroutines.Job]?.isActive == false) throw kotlinx.coroutines.CancellationException("Download cancelled")
                         output.write(buffer, 0, bytes)
                         bytesCopied += bytes
                         if (contentLength > 0 && bytesCopied - lastProgressBytes >= progressChunk) {

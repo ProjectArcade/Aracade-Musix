@@ -34,30 +34,9 @@ fun RecommendationsScreen(viewModel: HomeViewModel = viewModel()) {
     val recommendations by viewModel.similarRecommendations.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
-    val gradientColors = if (isLightTheme) {
-        listOf(
-            Color(0xFFFDE6EA), // Light pinkish
-            MaterialTheme.colorScheme.background
-        )
-    } else {
-        listOf(
-            Color(0xFF3B151E), // Dark reddish
-            MaterialTheme.colorScheme.background
-        )
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp
         
-        // Background subtle gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .background(Brush.verticalGradient(gradientColors))
-        )
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = topPadding, bottom = 120.dp),

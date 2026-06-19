@@ -1435,27 +1435,13 @@ fun MainScreen() {
 
         com.arcadesoftware.musix.components.FloatingHeartsContainer()
 
-        val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
         // Status bar protector to ensure scrolling content doesn't overlap system notifications
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .windowInsetsTopHeight(WindowInsets.statusBars)
-                .drawBackdrop(
-                    backdrop = if (activePlaylistDetail != null) playlistBackdrop else mainBackdrop,
-                    shape = { androidx.compose.ui.graphics.RectangleShape },
-                    effects = {
-                        vibrancy()
-                        blur(16f.dp.toPx())
-                    },
-                    layerBlock = {},
-                    onDrawSurface = {
-                        drawRect(
-                            color = if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f)
-                        )
-                    }
-                )
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
         )
     }
 }

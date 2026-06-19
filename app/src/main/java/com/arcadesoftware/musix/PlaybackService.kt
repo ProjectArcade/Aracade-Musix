@@ -135,7 +135,13 @@ class PlaybackService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // Keep service running when swiped from recents
+        // App swiped from recents → always stop service and release player
+        PlayerManager.exoPlayer?.stop()
+        PlayerManager.exoPlayer?.release()
+        PlayerManager.exoPlayer = null
+        PlayerManager.isPlaying.value = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     override fun onDestroy() {

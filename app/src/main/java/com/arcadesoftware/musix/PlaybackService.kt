@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 
@@ -70,7 +71,11 @@ class PlaybackService : Service() {
             .setSmallIcon(android.R.drawable.ic_media_play)
             .build()
 
-        startForeground(1001, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1001, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(1001, notification)
+        }
 
         val action = intent?.action
         if (action != null) {
@@ -112,7 +117,11 @@ class PlaybackService : Service() {
     fun updateForegroundNotification(notification: Notification, isPlaying: Boolean) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (isPlaying) {
-            startForeground(1001, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1001, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(1001, notification)
+            }
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 stopForeground(STOP_FOREGROUND_DETACH)
@@ -126,13 +135,7 @@ class PlaybackService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // App swiped from recents → always stop service and release player
-        PlayerManager.exoPlayer?.stop()
-        PlayerManager.exoPlayer?.release()
-        PlayerManager.exoPlayer = null
-        PlayerManager.isPlaying.value = false
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // Keep service running when swiped from recents
     }
 
     override fun onDestroy() {

@@ -369,6 +369,7 @@ object PlayerManager {
 
             exoPlayer = ExoPlayer.Builder(context)
                 .setAudioAttributes(audioAttributes, true)
+                .setWakeMode(androidx.media3.common.C.WAKE_MODE_NETWORK)
                 .setMediaSourceFactory(
                     androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
                 )

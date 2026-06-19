@@ -41,6 +41,7 @@ import android.widget.Toast
 import com.arcadesoftware.musix.ui.screens.HomeScreen
 import com.arcadesoftware.musix.ui.screens.PlaylistScreen
 import com.arcadesoftware.musix.ui.screens.RecommendationsScreen
+import com.arcadesoftware.musix.ui.screens.LibraryScreen
 
 import androidx.compose.ui.text.font.FontWeight
 import com.arcadesoftware.musix.ui.screens.PlaylistDetailScreen
@@ -1257,7 +1258,7 @@ fun MainScreen() {
                 when (selectedTab) {
                     0 -> HomeScreen()
                     1 -> PlaylistScreen(backdrop = playlistBackdrop)
-                    2 -> PlaylistScreen(backdrop = playlistBackdrop)
+                    2 -> LibraryScreen(backdrop = playlistBackdrop)
                     3 -> RecommendationsScreen()
                 }
             }

@@ -641,6 +641,7 @@ fun PlaylistDetailScreen(
                                 songs!!.forEach { song ->
                                     PlayerManager.cancelDownload(song.id)
                                 }
+                                com.arcadesoftware.musix.db.DownloadedPlaylistsManager.removeDownloadedPlaylist(context, playlistItem.id)
                             } else if (downloadedCount < totalCount) {
                                 songs!!.forEach { song ->
                                     val isDownloaded = downloadedSongs.any { it.id == song.id }
@@ -648,6 +649,16 @@ fun PlaylistDetailScreen(
                                         PlayerManager.startDownload(song, context)
                                     }
                                 }
+                                com.arcadesoftware.musix.db.DownloadedPlaylistsManager.addDownloadedPlaylist(
+                                    context,
+                                    com.arcadesoftware.musix.db.DownloadedPlaylistsManager.DownloadedPlaylist(
+                                        id = playlistItem.id,
+                                        title = title,
+                                        thumbnail = thumbnail,
+                                        type = if (playlistItem is com.music.innertube.models.AlbumItem) "ALBUM" else "PLAYLIST",
+                                        subtitle = subtitle
+                                    )
+                                )
                             }
                         },
                         backdrop = backdrop,

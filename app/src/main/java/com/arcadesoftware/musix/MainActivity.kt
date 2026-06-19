@@ -1737,13 +1737,41 @@ fun MiniPlayer(
                 horizontalArrangement = Arrangement.Center
             ) {
                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-                val rotation by infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
+                val wave1Scale by infiniteTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.35f,
                     animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                        animation = androidx.compose.animation.core.tween(2000, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
                         repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                    )
+                    ),
+                    label = "wave1Scale"
+                )
+                val wave1Alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.5f,
+                    targetValue = 0f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2000, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "wave1Alpha"
+                )
+                val wave2Scale by infiniteTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.35f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2000, delayMillis = 1000, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "wave2Scale"
+                )
+                val wave2Alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.5f,
+                    targetValue = 0f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2000, delayMillis = 1000, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "wave2Alpha"
                 )
 
                 Box(
@@ -1754,11 +1782,26 @@ fun MiniPlayer(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { rotationZ = rotation }
+                                .graphicsLayer {
+                                    scaleX = wave1Scale
+                                    scaleY = wave1Scale
+                                    alpha = wave1Alpha
+                                }
                                 .background(
-                                    brush = androidx.compose.ui.graphics.Brush.sweepGradient(
-                                        listOf(Color.Red, Color.Magenta, Color.Blue, Color.Cyan, Color.Green, Color.Yellow, Color.Red)
-                                    ),
+                                    color = contentColor.copy(alpha = 0.35f),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    scaleX = wave2Scale
+                                    scaleY = wave2Scale
+                                    alpha = wave2Alpha
+                                }
+                                .background(
+                                    color = contentColor.copy(alpha = 0.35f),
                                     shape = androidx.compose.foundation.shape.CircleShape
                                 )
                         )
@@ -2296,22 +2339,56 @@ fun MiniPlayer(
                                     modifier = Modifier.size(28.dp).then(consumeClicksModifier)
                                 )
                                 1 -> {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(28.dp).then(consumeClicksModifier)
+                                    val primaryColor = MaterialTheme.colorScheme.primary
+                                    androidx.compose.foundation.Canvas(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable(
+                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                if (songId.isNotEmpty()) {
+                                                    PlayerManager.cancelDownload(songId)
+                                                }
+                                            }
                                     ) {
-                                        CircularProgressIndicator(
-                                            progress = { downloadProgress },
-                                            modifier = Modifier.fillMaxSize(),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        val sizePx = size.minDimension
+                                        val strokeWidthPx = 2.dp.toPx()
+                                        val radius = (sizePx - strokeWidthPx) / 2f
+                                        val centerOffset = androidx.compose.ui.geometry.Offset(sizePx / 2f, sizePx / 2f)
+
+                                        // Draw track
+                                        drawCircle(
+                                            color = primaryColor.copy(alpha = 0.2f),
+                                            radius = radius,
+                                            center = centerOffset,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidthPx)
                                         )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(RoundedCornerShape(1.5.dp))
-                                                .background(MaterialTheme.colorScheme.primary)
+
+                                        // Draw progress arc
+                                        drawArc(
+                                            color = primaryColor,
+                                            startAngle = -90f,
+                                            sweepAngle = downloadProgress * 360f,
+                                            useCenter = false,
+                                            topLeft = androidx.compose.ui.geometry.Offset(strokeWidthPx / 2f, strokeWidthPx / 2f),
+                                            size = androidx.compose.ui.geometry.Size(sizePx - strokeWidthPx, sizePx - strokeWidthPx),
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                                width = strokeWidthPx,
+                                                cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                            )
+                                        )
+
+                                        // Draw stop/pause square in the center
+                                        val squareSize = 8.dp.toPx()
+                                        val squareLeft = (sizePx - squareSize) / 2f
+                                        val squareTop = (sizePx - squareSize) / 2f
+                                        val cornerRadiusPx = 1.5.dp.toPx()
+                                        drawRoundRect(
+                                            color = primaryColor,
+                                            topLeft = androidx.compose.ui.geometry.Offset(squareLeft, squareTop),
+                                            size = androidx.compose.ui.geometry.Size(squareSize, squareSize),
+                                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx)
                                         )
                                     }
                                 }

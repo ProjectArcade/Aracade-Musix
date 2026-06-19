@@ -863,6 +863,15 @@ fun ArtistLibraryDetailScreen(
     var selectedTab by remember(artist) { mutableStateOf(if (artist.songs.isEmpty() && artist.id != null) 1 else 0) }
     val hasOnlineProfile = artist.id != null
 
+    val libListState = rememberLazyListState()
+    val onlineListState = rememberLazyListState()
+    val showMiniTitle by remember(selectedTab) {
+        derivedStateOf {
+            val state = if (selectedTab == 0) libListState else onlineListState
+            state.firstVisibleItemIndex > 0 || (state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset > 200)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -898,52 +907,8 @@ fun ArtistLibraryDetailScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = artist.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                if (artist.id != null) {
-                    val context = LocalContext.current
-                    var isLiked by remember(artist.id) { 
-                        mutableStateOf(LikedArtistsManager.isArtistLiked(context, artist.id)) 
-                    }
-                    IconButton(onClick = {
-                        val willBeLiked = LikedArtistsManager.toggleLikeArtist(context, artist.id, artist.name, artist.thumbnailUrl)
-                        isLiked = willBeLiked
-                        if (willBeLiked) {
-                            com.arcadesoftware.musix.components.HeartAnimManager.trigger()
-                        }
-                        onLikedArtistsChanged()
-                    }) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = "Heart Artist",
-                            tint = if (isLiked) appleRed else MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.statusBarsPadding())
+            Spacer(modifier = Modifier.height(64.dp))
 
             // Big profile card
             Column(
@@ -1023,6 +988,7 @@ fun ArtistLibraryDetailScreen(
             if (selectedTab == 0 && artist.songs.isNotEmpty()) {
                 // In Library Screen
                 LazyColumn(
+                    state = libListState,
                     contentPadding = PaddingValues(bottom = 150.dp),
                     modifier = Modifier.weight(1f)
                 ) {
@@ -1145,7 +1111,96 @@ fun ArtistLibraryDetailScreen(
                 }
             } else if (hasOnlineProfile) {
                 // Explore Online Screen
-                ArtistOnlineDetailView(artistId = artist.id!!, appleRed = appleRed, modifier = Modifier.weight(1f))
+                ArtistOnlineDetailView(
+                    artistId = artist.id!!,
+                    appleRed = appleRed,
+                    backdrop = backdrop,
+                    listState = onlineListState,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Floating Top Bar with Liquid Back Button, Centered Title Pill, and Heart Button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            // Back button
+            Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                com.arcadesoftware.musix.components.LiquidButton(
+                    onClick = onBack,
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = appleRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Mini title pill (appears when scrolled)
+            Box(
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedVisibility(
+                    visible = showMiniTitle,
+                    enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
+                ) {
+                    com.arcadesoftware.musix.components.LiquidButton(
+                        onClick = {},
+                        backdrop = backdrop,
+                        modifier = Modifier.height(36.dp).wrapContentWidth(),
+                        isInteractive = false
+                    ) {
+                        Text(
+                            artist.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+            }
+
+            // Liked/Heart button
+            if (artist.id != null) {
+                val context = LocalContext.current
+                var isLiked by remember(artist.id) { 
+                    mutableStateOf(LikedArtistsManager.isArtistLiked(context, artist.id)) 
+                }
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    com.arcadesoftware.musix.components.LiquidButton(
+                        onClick = {
+                            val willBeLiked = LikedArtistsManager.toggleLikeArtist(context, artist.id, artist.name, artist.thumbnailUrl)
+                            isLiked = willBeLiked
+                            if (willBeLiked) {
+                                com.arcadesoftware.musix.components.HeartAnimManager.trigger()
+                            }
+                            onLikedArtistsChanged()
+                        },
+                        backdrop = backdrop,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = "Heart Artist",
+                            tint = if (isLiked) appleRed else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -1226,6 +1281,8 @@ fun LibrarySongRow(
 fun ArtistOnlineDetailView(
     artistId: String,
     appleRed: Color,
+    backdrop: LayerBackdrop,
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -1282,6 +1339,7 @@ fun ArtistOnlineDetailView(
         } else {
             artistPage?.let { page ->
                 LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(bottom = 150.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -1526,6 +1584,7 @@ fun ArtistOnlineDetailView(
                     title = title,
                     endpoint = endpoint,
                     appleRed = appleRed,
+                    backdrop = backdrop,
                     onBack = { activeSectionEndpoint = null }
                 )
             }
@@ -1538,6 +1597,7 @@ fun ArtistSectionDetailView(
     title: String,
     endpoint: BrowseEndpoint,
     appleRed: Color,
+    backdrop: LayerBackdrop,
     onBack: () -> Unit
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -1565,38 +1625,21 @@ fun ArtistSectionDetailView(
         }
     }
 
+    val lazyListState = rememberLazyListState()
+    val showMiniTitle by remember {
+        derivedStateOf {
+            lazyListState.firstVisibleItemIndex > 0 || (lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset > 200)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            Spacer(modifier = Modifier.statusBarsPadding())
+            Spacer(modifier = Modifier.height(64.dp))
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1613,8 +1656,6 @@ fun ArtistSectionDetailView(
                     }
                 }
             } else {
-                val lazyListState = rememberLazyListState()
-
                 // Detect when user scrolls near the bottom to trigger loading more
                 val shouldLoadMore = remember {
                     derivedStateOf {
@@ -1731,6 +1772,60 @@ fun ArtistSectionDetailView(
                                 CupertinoActivityIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Floating Top Bar with Liquid Back Button and Centered Title Pill
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            // Back button
+            Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                com.arcadesoftware.musix.components.LiquidButton(
+                    onClick = onBack,
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = appleRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Mini title pill (appears when scrolled)
+            Box(
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedVisibility(
+                    visible = showMiniTitle,
+                    enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
+                ) {
+                    com.arcadesoftware.musix.components.LiquidButton(
+                        onClick = {},
+                        backdrop = backdrop,
+                        modifier = Modifier.height(36.dp).wrapContentWidth(),
+                        isInteractive = false
+                    ) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
                     }
                 }
             }

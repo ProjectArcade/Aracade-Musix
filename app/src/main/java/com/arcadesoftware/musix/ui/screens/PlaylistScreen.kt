@@ -102,6 +102,7 @@ fun PlaylistScreen(
     val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
 
     var likedPlaylists by remember { mutableStateOf<List<LikedPlaylistsManager.LikedPlaylist>>(emptyList()) }
+    var downloadedPlaylists by remember { mutableStateOf<List<com.arcadesoftware.musix.db.DownloadedPlaylistsManager.DownloadedPlaylist>>(emptyList()) }
     var likedSongIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val activePlaylistDetail by PlayerManager.activePlaylistDetail.collectAsState()
 
@@ -117,6 +118,7 @@ fun PlaylistScreen(
         if (activePlaylistDetail == null) {
             likedPlaylists = withContext(Dispatchers.IO) { LikedPlaylistsManager.getLikedPlaylists(context) }
             likedSongIds = withContext(Dispatchers.IO) { LikedSongsManager.getLikedSongIds(context) }
+            downloadedPlaylists = withContext(Dispatchers.IO) { com.arcadesoftware.musix.db.DownloadedPlaylistsManager.getDownloadedPlaylists(context) }
         }
     }
 
@@ -172,6 +174,52 @@ fun PlaylistScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            if (downloadedPlaylists.isNotEmpty()) {
+                item {
+                    LibrarySectionHeader(title = "Downloaded Playlists")
+                }
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp)
+                    ) {
+                        items(downloadedPlaylists) { item ->
+                            PlaylistCard(
+                                title = item.title,
+                                subtitle = item.subtitle,
+                                thumbnail = item.thumbnail,
+                                onClick = {
+                                    val ytItem = if (item.type == "ALBUM") {
+                                        AlbumItem(
+                                            browseId = item.id,
+                                            playlistId = "",
+                                            title = item.title,
+                                            artists = listOf(Artist(item.subtitle, null)),
+                                            thumbnail = item.thumbnail ?: ""
+                                        )
+                                    } else {
+                                        PlaylistItem(
+                                            id = item.id,
+                                            title = item.title,
+                                            author = Artist(item.subtitle, null),
+                                            songCountText = null,
+                                            thumbnail = item.thumbnail,
+                                            playEndpoint = null,
+                                            shuffleEndpoint = null,
+                                            radioEndpoint = null
+                                        )
+                                    }
+                                    PlayerManager.activePlaylistDetail.value = ytItem
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             if (likedPlaylists.isNotEmpty()) {
@@ -1323,42 +1371,12 @@ fun BuiltInPlaylistDetailScreen(
             }
         }
         
+        val appleRed = Color(0xFFFA243C)
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                AnimatedVisibility(
-                    visible = showMiniTitle,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 20 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { 20 })
-                ) {
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                }
-            }
-            
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 120.dp)
+                contentPadding = PaddingValues(top = 96.dp, bottom = 120.dp)
             ) {
                 item {
                     Column(
@@ -1498,6 +1516,60 @@ fun BuiltInPlaylistDetailScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Floating Top Bar with Liquid Back Button and Centered Title Pill
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            // Back button
+            Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                LiquidButton(
+                    onClick = onBack,
+                    backdrop = backdrop,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = appleRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Mini title pill (appears when scrolled)
+            Box(
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedVisibility(
+                    visible = showMiniTitle,
+                    enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
+                ) {
+                    LiquidButton(
+                        onClick = {},
+                        backdrop = backdrop,
+                        modifier = Modifier.height(36.dp).wrapContentWidth(),
+                        isInteractive = false
+                    ) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
                     }
                 }
             }

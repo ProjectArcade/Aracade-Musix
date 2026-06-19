@@ -388,18 +388,14 @@ object PlayerManager {
     fun playLocal(song: SongItem, localFilePath: String) {
         queue.value = listOf(song)
         currentQueueIndex.value = 0
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                currentSong.value = song
-                updatePlaybackDetails()
-            }
-            withContext(Dispatchers.Main) {
-                exoPlayer?.stop()
-                exoPlayer?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(java.io.File(localFilePath))))
-                exoPlayer?.prepare()
-                exoPlayer?.play()
-                updatePlaybackDetails()
-            }
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            currentSong.value = song
+            updatePlaybackDetails()
+            exoPlayer?.stop()
+            exoPlayer?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(java.io.File(localFilePath))))
+            exoPlayer?.prepare()
+            exoPlayer?.play()
+            updatePlaybackDetails()
         }
     }
 
@@ -664,7 +660,7 @@ object PlayerManager {
                 }
             }
 
-            withContext(Dispatchers.Main) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
                 currentSong.value = resolvedSong
                 updatePlaybackDetails()
             }
@@ -679,7 +675,7 @@ object PlayerManager {
                 val localFile = java.io.File(downloadedSong!!.localFilePath)
                 if (localFile.exists()) {
                     android.util.Log.d(TAG, "Playing local downloaded file: ${localFile.absolutePath}")
-                    withContext(Dispatchers.Main) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
                         exoPlayer?.stop()
                         exoPlayer?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(localFile)))
                         exoPlayer?.prepare()
@@ -752,7 +748,7 @@ object PlayerManager {
             if (streamUrl != null) {
                 activeUserAgent = usedUserAgent
                 android.util.Log.d(TAG, "Playing stream URL (length=${streamUrl!!.length}) with User-Agent: $activeUserAgent")
-                withContext(Dispatchers.Main) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
                     exoPlayer?.stop()
                     exoPlayer?.setMediaItem(MediaItem.fromUri(streamUrl!!))
                     exoPlayer?.prepare()
@@ -775,16 +771,22 @@ object PlayerManager {
     private fun startProgressUpdates() {
         scope.launch {
             while (true) {
-                withContext(Dispatchers.Main) {
-                    exoPlayer?.let { player ->
-                        if (player.isPlaying || player.playbackState == androidx.media3.common.Player.STATE_READY) {
-                            currentPosition.value = player.currentPosition
-                            currentDuration.value = player.duration.coerceAtLeast(0L)
-                            updatePlaybackState()
+                try {
+                    val player = exoPlayer
+                    if (player != null && player.isPlaying) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            exoPlayer?.let { p ->
+                                if (p.isPlaying) {
+                                    currentPosition.value = p.currentPosition
+                                    currentDuration.value = p.duration.coerceAtLeast(0L)
+                                }
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "Error in progress updates", e)
                 }
-                kotlinx.coroutines.delay(250)
+                kotlinx.coroutines.delay(1000)
             }
         }
     }
@@ -937,7 +939,7 @@ object PlayerManager {
                 }
 
                 bitmap?.let { b ->
-                    withContext(Dispatchers.Main) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
                         val activeSong = currentSong.value as? SongItem
                         if (activeSong?.id == song.id) {
                             currentMetadataBitmap = b

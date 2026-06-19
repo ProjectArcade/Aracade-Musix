@@ -38,6 +38,7 @@ import com.arcadesoftware.musix.ui.theme.MusixTheme
 import com.kyant.backdrop.catalog.components.LiquidBottomTab
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.drawBackdrop
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.arcadesoftware.musix.ui.screens.HomeScreen
@@ -1432,13 +1433,27 @@ fun MainScreen() {
 
         com.arcadesoftware.musix.components.FloatingHeartsContainer()
 
+        val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
         // Status bar protector to ensure scrolling content doesn't overlap system notifications
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .windowInsetsTopHeight(WindowInsets.statusBars)
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
+                .drawBackdrop(
+                    backdrop = if (activePlaylistDetail != null) playlistBackdrop else mainBackdrop,
+                    shape = { androidx.compose.ui.graphics.RectangleShape },
+                    effects = {
+                        com.kyant.backdrop.effects.vibrancy()
+                        com.kyant.backdrop.effects.blur(16f.dp.toPx())
+                    },
+                    layerBlock = {},
+                    onDrawSurface = {
+                        drawRect(
+                            color = if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f)
+                        )
+                    }
+                )
         )
     }
 }

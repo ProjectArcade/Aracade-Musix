@@ -806,18 +806,15 @@ object PlayerManager {
     }
 
     private fun startProgressUpdates() {
-        scope.launch {
+        scope.launch(Dispatchers.Main) {
             while (true) {
                 try {
                     val player = exoPlayer
                     if (player != null && player.isPlaying) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            exoPlayer?.let { p ->
-                                if (p.isPlaying) {
-                                    currentPosition.value = p.currentPosition
-                                    currentDuration.value = p.duration.coerceAtLeast(0L)
-                                }
-                            }
+                        currentPosition.value = player.currentPosition
+                        val dur = player.duration
+                        if (dur > 0) {
+                            currentDuration.value = dur
                         }
                     }
                 } catch (e: Exception) {
@@ -883,6 +880,10 @@ object PlayerManager {
         }
 
         val position = overridePosition ?: player.currentPosition
+        currentPosition.value = position
+        if (playerDuration > 0) {
+            currentDuration.value = playerDuration
+        }
 
         val likeIconRes = if (isCurrentSongLiked.value) R.drawable.ic_heart_filled else R.drawable.ic_heart_outline
         val likeTitle = if (isCurrentSongLiked.value) "Unlike" else "Like"
@@ -943,7 +944,9 @@ object PlayerManager {
         currentMetadataDuration = targetDuration
         if (isDifferentSong) {
             currentMetadataBitmap = null // Reset bitmap only for a different song
+            currentPosition.value = 0L
         }
+        currentDuration.value = targetDuration
 
         val metadataBuilder = android.media.MediaMetadata.Builder()
             .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, song.title)

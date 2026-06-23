@@ -1442,11 +1442,13 @@ fun MainScreen() {
     var hasPromptedSync by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(currentUser) {
-        if (currentUser == null && !hasPromptedSync) {
+    LaunchedEffect(currentUser, showForceUpdateDialog, showSoftUpdateDialog) {
+        if (currentUser == null && !hasPromptedSync && !showForceUpdateDialog && !showSoftUpdateDialog) {
             hasPromptedSync = true
             kotlinx.coroutines.delay(2000)
-            showCloudSyncPrompt = true
+            if (!showForceUpdateDialog && !showSoftUpdateDialog) {
+                showCloudSyncPrompt = true
+            }
         }
     }
 

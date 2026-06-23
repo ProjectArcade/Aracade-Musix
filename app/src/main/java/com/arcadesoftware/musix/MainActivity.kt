@@ -41,6 +41,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.arcadesoftware.musix.ui.screens.HomeScreen
@@ -1352,6 +1353,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
@@ -1389,10 +1391,17 @@ fun MainScreen() {
     }
 
     var showAccountSheet by remember { mutableStateOf(false) }
+    var currentUser by remember { mutableStateOf(com.google.firebase.auth.FirebaseAuth.getInstance().currentUser) }
+    var showWelcomePopup by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) {
+        com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
+            currentUser = auth.currentUser
+        }
+    }
+
     if (showAccountSheet) {
-        @OptIn(ExperimentalMaterial3Api::class)
         ModalBottomSheet(
             onDismissRequest = { showAccountSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -1408,15 +1417,120 @@ fun MainScreen() {
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                Button(
+
+                if (currentUser == null) {
+                    Button(
+                        onClick = {
+                            showAccountSheet = false
+                            scope.launch {
+                                try {
+                                    val credentialManager = androidx.credentials.CredentialManager.create(context)
+                                    val request = androidx.credentials.GetCredentialRequest.Builder()
+                                        .addCredentialOption(
+                                            com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+                                                .setFilterByAuthorizedAccounts(false)
+                                                .setServerClientId("983178184530-c0grj95ua7kb862qnr0f9nnhr2g3t5qt.apps.googleusercontent.com")
+                                                .setAutoSelectEnabled(false)
+                                                .build()
+                                        )
+                                        .build()
+                                    val result = credentialManager.getCredential(context, request)
+                                    val credential = result.credential
+                                    if (credential is androidx.credentials.CustomCredential &&
+                                        credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                    ) {
+                                        val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
+                                        val idToken = googleIdTokenCredential.idToken
+                                        val authCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+                                        com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(authCredential)
+                                            .addOnSuccessListener {
+                                                showWelcomePopup = true
+                                                scope.launch {
+                                                    kotlinx.coroutines.delay(2500)
+                                                    showWelcomePopup = false
+                                                }
+                                            }
+                                            .addOnFailureListener {
+                                                android.widget.Toast.makeText(context, "Sign in failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                    }
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Google Sign-In failed", android.widget.Toast.LENGTH_SHORT).show()
+                                    e.printStackTrace()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_google),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sign in with Google")
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val rotation by infiniteTransition.animateFloat(
+                            initialValue = 0f, targetValue = 360f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                            )
+                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .graphicsLayer { rotationZ = rotation }
+                                    .border(
+                                        2.dp,
+                                        androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                        androidx.compose.foundation.shape.CircleShape
+                                    )
+                            )
+                            AsyncImage(
+                                model = currentUser?.photoUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(currentUser?.displayName ?: "User", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(currentUser?.email ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            showAccountSheet = false
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                            com.arcadesoftware.musix.components.ByeAnimManager.trigger()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                        Text("Sign Out")
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
                     onClick = {
                         showAccountSheet = false
-                        // Handle Google Sign in
+                        context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp)
                 ) {
-                    Icon(Icons.Rounded.AccountCircle, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                    Text("Sign in with Google")
+                    Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text("Settings")
                 }
                 Spacer(modifier = Modifier.height(48.dp))
             }
@@ -1500,6 +1614,8 @@ fun MainScreen() {
         }
 
         com.arcadesoftware.musix.components.FloatingHeartsContainer()
+        com.arcadesoftware.musix.components.FloatingCelebrateContainer()
+        com.arcadesoftware.musix.components.FloatingByeContainer()
 
         // Status bar protector to ensure scrolling content doesn't overlap system notifications
         Box(
@@ -1509,6 +1625,119 @@ fun MainScreen() {
                 .windowInsetsTopHeight(WindowInsets.statusBars)
                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
         )
+
+        LaunchedEffect(showWelcomePopup) {
+            if (showWelcomePopup) {
+                com.arcadesoftware.musix.components.CelebrateAnimManager.trigger()
+            }
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showWelcomePopup,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.8f),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val popupAlpha = if (isLight) 0.5f else 0.4f
+            val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
+            val popupShape = RoundedCornerShape(14.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showWelcomePopup = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(270.dp)
+                        .drawBackdrop(
+                            backdrop = mainBackdrop,
+                            shape = { popupShape },
+                            effects = {
+                                vibrancy()
+                                blur(16f.dp.toPx())
+                                lens(12f.dp.toPx(), 24f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(containerColor)
+                            }
+                        )
+                        .border(
+                            width = 0.5.dp,
+                            color = if (isLight) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.15f),
+                            shape = popupShape
+                        )
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {},
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "🎉 Welcome back 🎉",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = if (isLight) Color.Black else Color.White
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val rotation by infiniteTransition.animateFloat(
+                            initialValue = 0f, targetValue = 360f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                            )
+                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .graphicsLayer { rotationZ = rotation }
+                                    .border(
+                                        2.dp,
+                                        androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                        androidx.compose.foundation.shape.CircleShape
+                                    )
+                            )
+                            AsyncImage(
+                                model = currentUser?.photoUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.size(60.dp).clip(androidx.compose.foundation.shape.CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = currentUser?.displayName ?: "",
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            color = if (isLight) Color.DarkGray else Color.LightGray,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f), thickness = 0.5.dp)
+                    androidx.compose.material3.TextButton(
+                        onClick = { showWelcomePopup = false },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        shape = androidx.compose.ui.graphics.RectangleShape
+                    ) {
+                        Text("OK", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
+                    }
+                }
+            }
+        }
     }
 }
 

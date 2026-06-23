@@ -530,6 +530,7 @@ private fun UserPlaylistDetailScreen(
     val scope = rememberCoroutineScope()
     val appleRed = Color(0xFFFA243C)
     var showEditSheet by remember { mutableStateOf(false) }
+    var showSongOptionsSheet by remember { mutableStateOf<com.arcadesoftware.musix.db.entities.PlayHistoryEntity?>(null) }
     var editName by remember(playlist.name) { mutableStateOf(playlist.name) }
     var editCoverUri by remember(playlist.coverUri) { mutableStateOf(playlist.coverUri) }
     val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -833,9 +834,7 @@ private fun UserPlaylistDetailScreen(
                         }
                         IconButton(
                             onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    db.musicDao().removeSongFromPlaylist(playlist.id, songEntity.id)
-                                }
+                                showSongOptionsSheet = songEntity
                             },
                             modifier = Modifier.size(36.dp)
                         ) {
@@ -938,6 +937,81 @@ private fun UserPlaylistDetailScreen(
                         ) { Text("Save") }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+
+        if (showSongOptionsSheet != null) {
+            val selectedSong = showSongOptionsSheet!!
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showSongOptionsSheet = null },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))) {
+                            AsyncImage(
+                                model = selectedSong.thumbnailUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(selectedSong.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(selectedSong.artistName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch(Dispatchers.IO) {
+                                    db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
+                                }
+                                showSongOptionsSheet = null
+                            }
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text("Remove from playlist", style = MaterialTheme.typography.bodyLarge)
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                PlayerManager.cancelDownload(selectedSong.id)
+                                scope.launch(Dispatchers.IO) {
+                                    db.musicDao().removeDownloadedSong(selectedSong.id)
+                                    val file = java.io.File(context.filesDir, "downloads/${selectedSong.id}.m4a")
+                                    if (file.exists()) file.delete()
+                                    db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
+                                }
+                                showSongOptionsSheet = null
+                            }
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text("Delete this music", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                    }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }

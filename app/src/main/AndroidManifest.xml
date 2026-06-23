@@ -38,6 +38,11 @@
             android:name=".SearchActivity"
             android:exported="false"
             android:theme="@style/Theme.Musix" />
+            
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Musix" />
     </application>
 
 </manifest>

@@ -142,3 +142,115 @@ fun HeartParticle(
             }
     )
 }
+
+object CelebrateAnimManager {
+    val triggerEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    
+    fun trigger() {
+        triggerEvents.tryEmit(Unit)
+    }
+}
+
+private val celebrateEmojis = listOf(
+    "🎉", "🎊", "🥳", "✨", "🎈", "🎇", "🎆", "🙌", "🥂", "🍾", "👏", "🫶", "🌟", "🔥"
+)
+
+@Composable
+fun FloatingCelebrateContainer(modifier: Modifier = Modifier) {
+    val hearts = remember { mutableStateListOf<FloatingHeart>() }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    LaunchedEffect(Unit) {
+        CelebrateAnimManager.triggerEvents.collect {
+            if (containerSize.width > 0 && containerSize.height > 0) {
+                val spawnCount = Random.nextInt(22, 33)
+                val now = System.currentTimeMillis()
+                for (i in 0 until spawnCount) {
+                    hearts.add(
+                        FloatingHeart(
+                            id = now + i + Random.nextLong(100000),
+                            startXFraction = Random.nextFloat() * 0.7f + 0.15f,
+                            scale = Random.nextFloat() * 0.8f + 0.6f,
+                            duration = Random.nextInt(2400, 3500),
+                            driftAmountPx = (Random.nextFloat() * 80f + 40f) * (if (Random.nextBoolean()) 1f else -1f),
+                            emoji = celebrateEmojis.random(),
+                            rotation = Random.nextFloat() * 50f - 25f
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { containerSize = it }
+    ) {
+        hearts.forEach { heart ->
+            key(heart.id) {
+                HeartParticle(
+                    heart = heart,
+                    containerSize = containerSize,
+                    onAnimationFinished = { hearts.remove(heart) }
+                )
+            }
+        }
+    }
+}
+
+object ByeAnimManager {
+    val triggerEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    
+    fun trigger() {
+        triggerEvents.tryEmit(Unit)
+    }
+}
+
+private val byeEmojis = listOf(
+    "👋", "😢", "🚪", "🚶", "💨", "💔"
+)
+
+@Composable
+fun FloatingByeContainer(modifier: Modifier = Modifier) {
+    val hearts = remember { mutableStateListOf<FloatingHeart>() }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    LaunchedEffect(Unit) {
+        ByeAnimManager.triggerEvents.collect {
+            if (containerSize.width > 0 && containerSize.height > 0) {
+                val spawnCount = Random.nextInt(22, 33)
+                val now = System.currentTimeMillis()
+                for (i in 0 until spawnCount) {
+                    hearts.add(
+                        FloatingHeart(
+                            id = now + i + Random.nextLong(100000),
+                            startXFraction = Random.nextFloat() * 0.7f + 0.15f,
+                            scale = Random.nextFloat() * 0.8f + 0.6f,
+                            duration = Random.nextInt(2400, 3500),
+                            driftAmountPx = (Random.nextFloat() * 80f + 40f) * (if (Random.nextBoolean()) 1f else -1f),
+                            emoji = byeEmojis.random(),
+                            rotation = Random.nextFloat() * 50f - 25f
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { containerSize = it }
+    ) {
+        hearts.forEach { heart ->
+            key(heart.id) {
+                HeartParticle(
+                    heart = heart,
+                    containerSize = containerSize,
+                    onAnimationFinished = { hearts.remove(heart) }
+                )
+            }
+        }
+    }
+}

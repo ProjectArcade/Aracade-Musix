@@ -2,6 +2,7 @@ package com.arcadesoftware.musix.ui.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -254,6 +255,13 @@ fun HomeScreen(
     val selectedChip by viewModel.selectedChip.collectAsState()
     val recommendations by viewModel.similarRecommendations.collectAsState()
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    
+    var currentUser by remember { mutableStateOf(com.google.firebase.auth.FirebaseAuth.getInstance().currentUser) }
+    LaunchedEffect(Unit) {
+        com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
+            currentUser = auth.currentUser
+        }
+    }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isLoading,
@@ -276,16 +284,45 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "MUSIX",
+                        text = "Musix",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(
-                            imageVector = Icons.Rounded.AccountCircle,
-                            contentDescription = "Profile",
-                            modifier = Modifier.size(36.dp)
-                        )
+                        if (currentUser != null && currentUser?.photoUrl != null) {
+                            val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                            val rotation by infiniteTransition.animateFloat(
+                                initialValue = 0f, targetValue = 360f,
+                                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                    animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                                )
+                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .graphicsLayer { rotationZ = rotation }
+                                        .border(
+                                            2.dp,
+                                            androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                            androidx.compose.foundation.shape.CircleShape
+                                        )
+                                )
+                                AsyncImage(
+                                    model = currentUser?.photoUrl,
+                                    contentDescription = "Profile",
+                                    modifier = Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.AccountCircle,
+                                contentDescription = "Profile",
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                     }
                 }
             }

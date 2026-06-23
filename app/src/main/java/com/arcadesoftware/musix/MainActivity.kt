@@ -1589,7 +1589,19 @@ fun MainScreen() {
                             )
                         }
                     }
-
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            showAccountSheet = false
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                            com.arcadesoftware.musix.components.ByeAnimManager.trigger()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                        Text("Sign Out")
+                    }
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             } else {
@@ -1713,19 +1725,7 @@ fun MainScreen() {
                                 tint = Color.Gray
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                showAccountSheet = false
-                                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                com.arcadesoftware.musix.components.ByeAnimManager.trigger()
-                            },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text("Sign Out")
-                        }
+
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedButton(

@@ -134,25 +134,40 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun refreshContentSilently() {
         try {
-            val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(getApplication())
-            val recentHistory = db.musicDao().getRecentPlayHistory(10).first()
-            val newRecommendations = mutableListOf<SimilarRecommendation>()
-            for (seed in recentHistory.take(5)) {
-                val endpoint = com.music.innertube.models.WatchEndpoint(videoId = seed.id)
-                val nextResult = YouTube.next(endpoint).getOrNull()
-                if (nextResult != null) {
-                    val items = nextResult.items.filter { it.id != seed.id }.shuffled().take(10)
-                    if (items.isNotEmpty()) {
-                        newRecommendations.add(SimilarRecommendation(seed, items))
+            val context = getApplication<Application>()
+            val prefs = context.getSharedPreferences("recommendations_prefs", android.content.Context.MODE_PRIVATE)
+            val lastUpdateTime = prefs.getLong("last_update_time", 0L)
+            val currentTime = System.currentTimeMillis()
+            val (cachedHome, cachedRecs) = com.arcadesoftware.musix.HomeCacheManager.load(context)
+            
+            val shouldUpdateRecs = cachedRecs.isEmpty() || (currentTime - lastUpdateTime > 24 * 60 * 60 * 1000L)
+            
+            val shuffledRecs = if (shouldUpdateRecs) {
+                val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
+                val recentHistory = db.musicDao().getRecentPlayHistory(10).first()
+                val newRecommendations = mutableListOf<SimilarRecommendation>()
+                for (seed in recentHistory.take(5)) {
+                    val endpoint = com.music.innertube.models.WatchEndpoint(videoId = seed.id)
+                    val nextResult = YouTube.next(endpoint).getOrNull()
+                    if (nextResult != null) {
+                        val items = nextResult.items.filter { it.id != seed.id }.shuffled().take(10)
+                        if (items.isNotEmpty()) {
+                            newRecommendations.add(SimilarRecommendation(seed, items))
+                        }
                     }
                 }
+                val result = newRecommendations.shuffled()
+                prefs.edit().putLong("last_update_time", currentTime).apply()
+                result
+            } else {
+                cachedRecs
             }
-            val shuffledRecs = newRecommendations.shuffled()
+
             val result = YouTube.home()
             result.onSuccess { freshHome ->
                 _homePage.value = freshHome
                 similarRecommendations.value = shuffledRecs
-                com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), freshHome, shuffledRecs)
+                com.arcadesoftware.musix.HomeCacheManager.save(context, freshHome, shuffledRecs)
             }
         } catch (e: Exception) {
             android.util.Log.e("HomeViewModel", "Failed to refresh content silently", e)
@@ -178,6 +193,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 val shuffledRecs = newRecommendations.shuffled()
+                
+                val context = getApplication<Application>()
+                val prefs = context.getSharedPreferences("recommendations_prefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putLong("last_update_time", System.currentTimeMillis()).apply()
+
                 similarRecommendations.value = shuffledRecs
                 com.arcadesoftware.musix.HomeCacheManager.save(getApplication(), _homePage.value, shuffledRecs)
             }

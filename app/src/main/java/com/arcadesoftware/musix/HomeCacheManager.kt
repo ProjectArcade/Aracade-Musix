@@ -30,6 +30,7 @@ object HomeCacheManager {
         } catch (e: Exception) {
             android.util.Log.e("HomeCacheManager", "Failed to save recommendations", e)
         }
+        com.arcadesoftware.musix.db.FirebaseSyncManager.syncRecommendations(context)
     }
 
     @Suppress("UNCHECKED_CAST")

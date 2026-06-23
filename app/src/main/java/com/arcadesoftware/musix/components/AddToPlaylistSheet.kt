@@ -143,6 +143,7 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
+                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
                                     onDismiss()
                                 }
                             }
@@ -164,6 +165,7 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
+                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
                                     onDismiss()
                                 }
                             }
@@ -246,6 +248,7 @@ fun AddToPlaylistSheet(
                                             position = Int.MAX_VALUE // Room will just append
                                         )
                                     )
+                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
                                     added = true
                                 }
                             }

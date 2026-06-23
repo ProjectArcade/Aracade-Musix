@@ -79,6 +79,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
             db.musicDao().insertPlaylist(
                 com.arcadesoftware.musix.db.entities.PlaylistEntity(name = name)
             )
+            com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(getApplication())
         }
     }
 
@@ -86,6 +87,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             db.musicDao().clearPlaylistSongs(playlistId)
             db.musicDao().deletePlaylist(playlistId)
+            com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(getApplication())
         }
     }
 }
@@ -980,6 +982,7 @@ private fun UserPlaylistDetailScreen(
                             .clickable {
                                 scope.launch(Dispatchers.IO) {
                                     db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
+                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
                                 }
                                 showSongOptionsSheet = null
                             }
@@ -1001,6 +1004,7 @@ private fun UserPlaylistDetailScreen(
                                     val file = java.io.File(context.filesDir, "downloads/${selectedSong.id}.m4a")
                                     if (file.exists()) file.delete()
                                     db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
+                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
                                 }
                                 showSongOptionsSheet = null
                             }

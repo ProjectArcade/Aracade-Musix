@@ -620,6 +620,7 @@ object PlayerManager {
                             thumbnailUrl = song.thumbnail
                         )
                     )
+                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncHistory(context.applicationContext)
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Download job exception: ${e.message}", e)
@@ -776,6 +777,7 @@ object PlayerManager {
                             thumbnailUrl = resolvedSong.thumbnail
                         )
                     )
+                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncHistory(ctx)
                 }
             }
 
@@ -1396,8 +1398,16 @@ fun MainScreen() {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
+        var lastUid: String? = null
         com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
-            currentUser = auth.currentUser
+            val user = auth.currentUser
+            currentUser = user
+            if (user != null && user.uid != lastUid) {
+                lastUid = user.uid
+                com.arcadesoftware.musix.db.FirebaseSyncManager.fetchAndMergeFirebaseData(context) {
+                    com.arcadesoftware.musix.db.FirebaseSyncManager.pushAllLocalDataToFirebase(context)
+                }
+            }
         }
     }
 

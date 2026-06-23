@@ -68,5 +68,23 @@ object LikedPlaylistsManager {
             .edit()
             .putString(KEY_LIKED_LIST, jsonArray.toString())
             .apply()
+        FirebaseSyncManager.syncLikedPlaylists(context)
+    }
+
+    fun saveLikedPlaylists(context: Context, list: List<LikedPlaylist>) {
+        val jsonArray = JSONArray()
+        for (item in list) {
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("title", item.title)
+            obj.put("thumbnail", item.thumbnail ?: "")
+            obj.put("type", item.type)
+            obj.put("subtitle", item.subtitle)
+            jsonArray.put(obj)
+        }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LIKED_LIST, jsonArray.toString())
+            .apply()
     }
 }

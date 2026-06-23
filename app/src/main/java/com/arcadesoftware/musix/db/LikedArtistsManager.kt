@@ -38,6 +38,7 @@ object LikedArtistsManager {
             true
         }
         prefs.edit().putStringSet(KEY_LIKED_IDS, set).apply()
+        FirebaseSyncManager.syncLikedArtists(context)
         return isNowLiked
     }
 
@@ -54,5 +55,21 @@ object LikedArtistsManager {
                 songs = emptyList()
             )
         }.sortedBy { it.name }
+    }
+
+    fun saveLikedArtists(context: Context, list: List<LibraryArtist>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val ids = list.map { it.id }.toSet()
+        val editor = prefs.edit()
+        editor.putStringSet(KEY_LIKED_IDS, ids)
+        for (artist in list) {
+            editor.putString(PREFIX_NAME + artist.id, artist.name)
+            if (artist.thumbnailUrl != null) {
+                editor.putString(PREFIX_THUMBNAIL + artist.id, artist.thumbnailUrl)
+            } else {
+                editor.remove(PREFIX_THUMBNAIL + artist.id)
+            }
+        }
+        editor.apply()
     }
 }

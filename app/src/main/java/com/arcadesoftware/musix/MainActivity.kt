@@ -1388,33 +1388,42 @@ fun MainScreen() {
         )
     }
 
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    var showAccountSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Spacer(Modifier.height(48.dp))
+    if (showAccountSheet) {
+        @OptIn(ExperimentalMaterial3Api::class)
+        ModalBottomSheet(
+            onDismissRequest = { showAccountSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     text = "Account",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null) },
-                    label = { Text("Sign in with Google") },
-                    selected = false,
+                Button(
                     onClick = {
-                        scope.launch { drawerState.close() }
+                        showAccountSheet = false
                         // Handle Google Sign in
                     },
-                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                )
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Icon(Icons.Rounded.AccountCircle, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text("Sign in with Google")
+                }
+                Spacer(modifier = Modifier.height(48.dp))
             }
         }
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
@@ -1447,7 +1456,7 @@ fun MainScreen() {
                 when (selectedTab) {
                     0 -> HomeScreen(
                         onOpenDrawer = {
-                            scope.launch { drawerState.open() }
+                            showAccountSheet = true
                         }
                     )
                     1 -> PlaylistScreen(backdrop = playlistBackdrop)
@@ -1500,7 +1509,6 @@ fun MainScreen() {
                 .windowInsetsTopHeight(WindowInsets.statusBars)
                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
         )
-    }
     }
 }
 

@@ -3593,7 +3593,8 @@ suspend fun fetchLrcLibLyrics(title: String, artist: String): String? {
 @Composable
 fun parseMarkdown(text: String): androidx.compose.ui.text.AnnotatedString {
     return androidx.compose.ui.text.buildAnnotatedString {
-        val parts = text.split("\n")
+        val normalizedText = text.replace("/n", "\n")
+        val parts = normalizedText.split("\n")
         parts.forEachIndexed { lineIdx, line ->
             var currentLine = line
             val isBullet = currentLine.startsWith("* ") || currentLine.startsWith("- ")

@@ -1378,6 +1378,7 @@ fun MainScreen() {
         android.util.Log.d("MainScreen", "POST_NOTIFICATIONS permission granted: $isGranted")
     }
 
+    var showBlockAllAccessDialog by remember { mutableStateOf(false) }
     var showForceUpdateDialog by remember { mutableStateOf(false) }
     var showSoftUpdateDialog by remember { mutableStateOf(false) }
     var updateMessage by remember { mutableStateOf("") }
@@ -1403,6 +1404,7 @@ fun MainScreen() {
             vcRef.addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
                 override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
                     if (snapshot.exists()) {
+                        val blockAllAccess = snapshot.child("block_all_access").value as? Boolean ?: false
                         val minSupported = (snapshot.child("min_supported_version_code").value as? Number)?.toInt() ?: 0
                         val currentVersion = (snapshot.child("current_version_code").value as? Number)?.toInt() ?: 0
                         val url = snapshot.child("update_path_url").value as? String ?: ""
@@ -1411,7 +1413,9 @@ fun MainScreen() {
                         updateUrl = url
                         updateMessage = msg
                         
-                        if (currentAppVersionCode < minSupported) {
+                        if (blockAllAccess) {
+                            showBlockAllAccessDialog = true
+                        } else if (currentAppVersionCode < minSupported) {
                             showForceUpdateDialog = true
                         } else if (currentAppVersionCode < currentVersion) {
                             showSoftUpdateDialog = true
@@ -1442,11 +1446,11 @@ fun MainScreen() {
     var hasPromptedSync by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(currentUser, showForceUpdateDialog, showSoftUpdateDialog) {
-        if (currentUser == null && !hasPromptedSync && !showForceUpdateDialog && !showSoftUpdateDialog) {
+    LaunchedEffect(currentUser, showForceUpdateDialog, showSoftUpdateDialog, showBlockAllAccessDialog) {
+        if (currentUser == null && !hasPromptedSync && !showForceUpdateDialog && !showSoftUpdateDialog && !showBlockAllAccessDialog) {
             hasPromptedSync = true
             kotlinx.coroutines.delay(2000)
-            if (!showForceUpdateDialog && !showSoftUpdateDialog) {
+            if (!showForceUpdateDialog && !showSoftUpdateDialog && !showBlockAllAccessDialog) {
                 showCloudSyncPrompt = true
             }
         }
@@ -1899,6 +1903,80 @@ fun MainScreen() {
                         ) {
                             Text("Sign In Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
                         }
+                    }
+                }
+            }
+        }
+
+        // 0. Block All Access Dialog (Non-dismissible, no actions)
+        if (showBlockAllAccessDialog) {
+            androidx.activity.compose.BackHandler(enabled = true) {
+                // Intercept back presses so user cannot close it
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showBlockAllAccessDialog,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.8f),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val popupAlpha = if (isLight) 0.5f else 0.4f
+            val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
+            val popupShape = RoundedCornerShape(14.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(270.dp)
+                        .drawBackdrop(
+                            backdrop = mainBackdrop,
+                            shape = { popupShape },
+                            effects = {
+                                vibrancy()
+                                blur(16f.dp.toPx())
+                                lens(12f.dp.toPx(), 24f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(containerColor)
+                            }
+                        )
+                        .border(
+                            width = 0.5.dp,
+                            color = if (isLight) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.15f),
+                            shape = popupShape
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFFA243C),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Service Unavailable",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = if (isLight) Color.Black else Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (updateMessage.isNotEmpty()) updateMessage else "This service is temporarily undergoing maintenance. Please check back later.",
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            color = if (isLight) Color.DarkGray else Color.LightGray
+                        )
                     }
                 }
             }

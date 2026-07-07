@@ -54,7 +54,15 @@ class SearchActivity : ComponentActivity() {
         // Ensure PlayerManager is always initialized, even if MainActivity was never opened
         PlayerManager.init(applicationContext)
         setContent {
-            MusixTheme {
+            val sharedPrefs = getSharedPreferences("musix_profile_settings", android.content.Context.MODE_PRIVATE)
+            val themePref = sharedPrefs.getInt("theme_preference", 0)
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val darkTheme = when (themePref) {
+                1 -> false // Light
+                2 -> true  // Dark
+                else -> isSystemDark
+            }
+            MusixTheme(darkTheme = darkTheme) {
                 SearchScreen(onBack = { finish() })
             }
         }

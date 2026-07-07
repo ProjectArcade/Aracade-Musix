@@ -2477,7 +2477,7 @@ fun MainScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .layerBackdrop(mainBackdrop)
-                    .background(Color.Transparent) // Avoid solid drawing overlaps
+                    .background(MaterialTheme.colorScheme.background)
             ) {
                 com.arcadesoftware.musix.ui.screens.DownloadsScreen(
                     onBackClick = { showDownloadsScreen = false }
@@ -3122,13 +3122,13 @@ fun AppBottomBar(
             }
             LiquidBottomTab(onClick = { onTabSelected(2) }) {
                 Icon(
-                    Icons.Rounded.LibraryMusic,
-                    contentDescription = "Library",
+                    Icons.Rounded.Person,
+                    contentDescription = "Artists",
                     tint = if (selectedTab == 2) activeColor else inactiveColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
-                    "Library",
+                    "Artists",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (selectedTab == 2) activeColor else inactiveColor
                 )

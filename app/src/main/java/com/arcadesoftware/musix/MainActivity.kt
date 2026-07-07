@@ -1369,9 +1369,24 @@ val LocalThemePreference = androidx.compose.runtime.compositionLocalOf<Int> { 0 
 val LocalThemePreferenceSetter = androidx.compose.runtime.compositionLocalOf<(Int) -> Unit> { {} }
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Enable Firestore offline persistence so any writes queued while
+        // offline (or during process kill) are delivered on the next launch.
+        try {
+            com.google.firebase.firestore.FirebaseFirestore.getInstance().apply {
+                val settings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
+                    .setPersistenceEnabled(true)
+                    .setCacheSizeBytes(com.google.firebase.firestore.FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                    .build()
+                firestoreSettings = settings
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Firestore persistence already set or failed", e)
+        }
 
         // Configure global Coil ImageLoader with disk and memory cache
         try {
@@ -1456,6 +1471,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Called whenever the app goes to the background (home button, recents, swipe-away).
+     * Enqueues a WorkManager job that syncs all local data to Firestore.
+     * WorkManager guarantees execution even if the process is killed immediately after.
+     */
+    override fun onStop() {
+        super.onStop()
+        if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null) {
+            com.arcadesoftware.musix.db.FirestoreSyncWorker.enqueue(applicationContext)
+            android.util.Log.d("MainActivity", "onStop: FirestoreSyncWorker enqueued")
         }
     }
 }
@@ -1889,12 +1917,29 @@ fun MainScreen() {
                                     isSigningOut = true
                                     showAccountSheet = false
                                     com.arcadesoftware.musix.components.ByeAnimManager.trigger()
-                                    // Push all data first, THEN clear local data and sign out.
-                                    // This prevents a race condition where clearAllLocalData()
-                                    // was called before the async push had finished.
-                                    com.arcadesoftware.musix.db.FirestoreSyncManager.pushAllLocalDataToFirestoreImmediately(context) {
-                                        com.arcadesoftware.musix.db.FirestoreSyncManager.clearAllLocalData(context)
-                                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                                    // Run ALL sync operations as sequential suspend calls in one
+                                    // coroutine — no fire-and-forget sub-launchers, no races.
+                                    // clearAllLocalData + signOut only happen after everything
+                                    // has been written to Firestore (or has failed).
+                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        try {
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .syncPlaylistsSuspend(context)
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .syncLikedSongsSuspend(context)
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .syncLikedArtistsSuspend(context)
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .syncLikedPlaylistsSuspend(context)
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .syncHistorySuspend(context)
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("SignOut", "Pre-signout sync failed", e)
+                                        } finally {
+                                            com.arcadesoftware.musix.db.FirestoreSyncManager
+                                                .clearAllLocalData(context)
+                                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                                        }
                                     }
                                 }
                             },
@@ -2154,6 +2199,9 @@ fun MainScreen() {
                     }
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    // Use the correct profile preferences settings file (musix_profile_settings) to wire up to Cloud sync
+                    val syncSharedPrefs = context.getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
+
                     Text("Playback & Downloads", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp, start = 8.dp))
                     Column(
                         modifier = Modifier
@@ -2163,42 +2211,46 @@ fun MainScreen() {
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        var rememberPos by remember { mutableStateOf(sharedPrefs.getBoolean("remember_playback_pos", true)) }
+                        var rememberPos by remember { mutableStateOf(syncSharedPrefs.getBoolean("resume_playback", true)) }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Remember Playback Position", fontWeight = FontWeight.Medium)
+                            Text("Remember Playback Position (Resume)", fontWeight = FontWeight.Medium)
                             com.arcadesoftware.musix.components.LiquidToggle(selected = { rememberPos }, backdrop = mainBackdrop, onSelect = {
                                 rememberPos = it
-                                sharedPrefs.edit().putBoolean("remember_playback_pos", it).apply()
+                                syncSharedPrefs.edit().putBoolean("resume_playback", it).apply()
+                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
                             })
                         }
                         androidx.compose.material3.Divider(color = Color.Gray.copy(alpha = 0.2f))
                         
-                        var alwaysShuffle by remember { mutableStateOf(sharedPrefs.getBoolean("always_shuffle", false)) }
+                        var alwaysShuffle by remember { mutableStateOf(syncSharedPrefs.getBoolean("always_shuffle", false)) }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Always Shuffle", fontWeight = FontWeight.Medium)
                             com.arcadesoftware.musix.components.LiquidToggle(selected = { alwaysShuffle }, backdrop = mainBackdrop, onSelect = {
                                 alwaysShuffle = it
-                                sharedPrefs.edit().putBoolean("always_shuffle", it).apply()
+                                syncSharedPrefs.edit().putBoolean("always_shuffle", it).apply()
+                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
                             })
                         }
                         androidx.compose.material3.Divider(color = Color.Gray.copy(alpha = 0.2f))
                         
-                        var autoDownload by remember { mutableStateOf(sharedPrefs.getBoolean("auto_download_playlists", true)) }
+                        var autoDownload by remember { mutableStateOf(syncSharedPrefs.getBoolean("auto_download_playlists", false)) }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Auto Download Playlists", fontWeight = FontWeight.Medium)
                             com.arcadesoftware.musix.components.LiquidToggle(selected = { autoDownload }, backdrop = mainBackdrop, onSelect = {
                                 autoDownload = it
-                                sharedPrefs.edit().putBoolean("auto_download_playlists", it).apply()
+                                syncSharedPrefs.edit().putBoolean("auto_download_playlists", it).apply()
+                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
                             })
                         }
                         androidx.compose.material3.Divider(color = Color.Gray.copy(alpha = 0.2f))
                         
-                        var wifiOnly by remember { mutableStateOf(sharedPrefs.getBoolean("download_wifi_only", true)) }
+                        var wifiOnly by remember { mutableStateOf(syncSharedPrefs.getBoolean("wifi_only_download", false)) }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Download on Wi-Fi Only", fontWeight = FontWeight.Medium)
                             com.arcadesoftware.musix.components.LiquidToggle(selected = { wifiOnly }, backdrop = mainBackdrop, onSelect = {
                                 wifiOnly = it
-                                sharedPrefs.edit().putBoolean("download_wifi_only", it).apply()
+                                syncSharedPrefs.edit().putBoolean("wifi_only_download", it).apply()
+                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
                             })
                         }
                     }

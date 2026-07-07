@@ -110,6 +110,20 @@ fun SearchScreen(onBack: () -> Unit) {
         results = emptyList()
     }
 
+    // Fetch synced history list (from Local Room DB sync) to show as Search History when query is empty
+    var searchHistoryList by remember { mutableStateOf<List<com.arcadesoftware.musix.db.entities.PlayHistoryEntity>>(emptyList()) }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
+            db.musicDao().getPlayHistory().collect { historyList ->
+                withContext(Dispatchers.Main) {
+                    searchHistoryList = historyList.take(6) // limit to recent 6 entries
+                }
+            }
+        }
+    }
+
     // Outer container — Both MiniPlayer AND Top Bar must be SIBLINGS of the layerBackdrop box,
     // not children inside it. This architecture avoids circular GPU rendering (SIGSEGV).
     Box(modifier = Modifier.fillMaxSize()) {
@@ -123,13 +137,12 @@ fun SearchScreen(onBack: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = if (currentSong != null) 80.dp else 0.dp)
+                    .padding(bottom = if (currentSong != null) 92.dp else 0.dp)
             ) {
                 // Spacer for the floating Top Bar (statusBarsPadding + Row height + vertical padding)
-                // height is 56.dp + 12.dp * 2 = 80.dp total area occupied by Top Bar.
                 Spacer(modifier = Modifier.statusBarsPadding().height(80.dp))
 
-                // Results / Suggestions List
+                // Results / Suggestions List / History
                 if (isLoading) {
                     Box(
                         modifier = Modifier
@@ -145,18 +158,27 @@ fun SearchScreen(onBack: () -> Unit) {
                             .fillMaxWidth()
                             .weight(1f),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        item {
+                            Text(
+                                text = "Search Results",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
                         items(results) { song ->
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(0.3f))
                                     .border(
-                                        width = 1.dp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(0.05f),
-                                        shape = RoundedCornerShape(16.dp)
+                                        width = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(0.08f),
+                                        shape = RoundedCornerShape(14.dp)
                                     )
                             ) {
                                 SearchSongRow(
@@ -172,31 +194,30 @@ fun SearchScreen(onBack: () -> Unit) {
                             .fillMaxWidth()
                             .weight(1f),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(suggestions) { suggestion ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(0.2f))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         query = suggestion
                                         searchSongs(suggestion)
                                     }
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(24.dp)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(
                                     text = suggestion,
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
@@ -204,17 +225,101 @@ fun SearchScreen(onBack: () -> Unit) {
                         }
                     }
                 } else {
-                    Box(
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentAlignment = Alignment.Center
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = if (query.isEmpty()) "Search for songs" else "No results found",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        if (searchHistoryList.isNotEmpty()) {
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Recently Synced History",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = "Clear",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickable {
+                                            scope.launch(Dispatchers.IO) {
+                                                val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
+                                                db.musicDao().clearPlayHistory()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            
+                            items(searchHistoryList) { historyItem ->
+                                val song = historyItem.toSongItem()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            query = song.title
+                                            PlayerManager.play(song)
+                                        }
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = song.thumbnail,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = song.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = song.artists?.firstOrNull()?.name ?: "Unknown Artist",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Rounded.History,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 100.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Search for songs, artists, or albums",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -222,28 +327,32 @@ fun SearchScreen(onBack: () -> Unit) {
 
         // Top Bar with Search Input — Overlays on top of the content box
         // and reads the GPU snapshot of the content box behind it via drawBackdrop().
+        // iOS Styled Top Search bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(56.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(28.dp)
-                ),
+                .height(44.dp) // iOS search height
+                .clip(RoundedCornerShape(10.dp)) // iOS round corner radius
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
+            IconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp).size(32.dp)) {
                 Icon(
                     imageVector = Icons.Rounded.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
+
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(18.dp)
+            )
 
             TextField(
                 value = query,
@@ -251,14 +360,15 @@ fun SearchScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                placeholder = { Text("Search songs...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)) },
+                placeholder = { Text("Search songs, artists...", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }) {
+                        IconButton(onClick = { query = "" }, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Clear",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -270,6 +380,7 @@ fun SearchScreen(onBack: () -> Unit) {
                     onSearch = { searchSongs(query) }
                 ),
                 singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,

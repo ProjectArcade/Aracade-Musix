@@ -120,6 +120,19 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".MainActivitySketch"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_sketch"
+            android:roundIcon="@mipmap/ic_launcher_sketch"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <activity
             android:name=".SearchActivity"
             android:exported="false"

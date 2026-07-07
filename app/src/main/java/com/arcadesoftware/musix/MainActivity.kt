@@ -1342,8 +1342,9 @@ object AppIconManager {
         val miniAlias = android.content.ComponentName(context, "$packageName.MainActivityMini1")
         val orangeAlias = android.content.ComponentName(context, "$packageName.MainActivityOrange")
         val specialAlias = android.content.ComponentName(context, "$packageName.MainActivitySpecial1")
+        val sketchAlias = android.content.ComponentName(context, "$packageName.MainActivitySketch")
 
-        val components = listOf(defaultAlias, blueAlias, comicAlias, grad2Alias, miniAlias, orangeAlias, specialAlias)
+        val components = listOf(defaultAlias, blueAlias, comicAlias, grad2Alias, miniAlias, orangeAlias, specialAlias, sketchAlias)
         val enableComponent = components[iconIndex]
         
         components.forEach {
@@ -2059,9 +2060,10 @@ fun MainScreen() {
                             R.mipmap.ic_launcher_gradient2,
                             R.mipmap.ic_launcher_mini1,
                             R.mipmap.ic_launcher_orange,
-                            R.mipmap.ic_launcher_special1
+                            R.mipmap.ic_launcher_special1,
+                            R.mipmap.ic_launcher_sketch
                         )
-                        val iconNames = listOf("Default", "Blue", "Comic", "Grad 2", "Mini", "Orange", "Special")
+                        val iconNames = listOf("Default", "Blue", "Comic", "Grad 2", "Mini", "Orange", "Special", "Sketch")
                         
                         items(icons.size) { index ->
                             val iconRes = icons[index]

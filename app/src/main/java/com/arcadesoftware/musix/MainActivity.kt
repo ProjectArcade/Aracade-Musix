@@ -120,6 +120,8 @@ object PlayerManager {
     var exoPlayer: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     val downloadProgressMap = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val downloadDetailsMap = MutableStateFlow<Map<String, SongItem>>(emptyMap())
+    val downloadPauseMap = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     private var restoredSongId: String? = null
     private var seekOnPreparePosition: Long? = null
 
@@ -601,6 +603,16 @@ object PlayerManager {
 
     fun cancelDownload(songId: String) {
         activeDownloadJobs.remove(songId)?.cancel()
+        downloadDetailsMap.value = downloadDetailsMap.value - songId
+        downloadPauseMap.value = downloadPauseMap.value - songId
+        synchronized(downloadProgressMap) {
+            downloadProgressMap.value = downloadProgressMap.value - songId
+        }
+    }
+
+    fun togglePauseDownload(songId: String) {
+        val currentlyPaused = downloadPauseMap.value[songId] ?: false
+        downloadPauseMap.value = downloadPauseMap.value + (songId to !currentlyPaused)
     }
 
     fun startDownload(song: SongItem, context: Context) {
@@ -608,6 +620,8 @@ object PlayerManager {
         synchronized(downloadProgressMap) {
             if (downloadProgressMap.value.containsKey(songId)) return
             downloadProgressMap.value = downloadProgressMap.value + (songId to 0f)
+            downloadDetailsMap.value = downloadDetailsMap.value + (songId to song)
+            downloadPauseMap.value = downloadPauseMap.value + (songId to false)
         }
         val destFile = java.io.File(
             context.applicationContext.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC),
@@ -616,6 +630,10 @@ object PlayerManager {
         val job = scope.launch(Dispatchers.IO) {
             try {
                 val localPath = downloadAudio(song, destFile) { progressVal ->
+                    // Support pause execution yield
+                    while (downloadPauseMap.value[songId] == true) {
+                        Thread.sleep(500)
+                    }
                     synchronized(downloadProgressMap) {
                         downloadProgressMap.value = downloadProgressMap.value + (songId to progressVal)
                     }
@@ -655,6 +673,8 @@ object PlayerManager {
                 if (!isDownloaded && destFile.exists()) {
                     destFile.delete()
                 }
+                downloadDetailsMap.value = downloadDetailsMap.value - songId
+                downloadPauseMap.value = downloadPauseMap.value - songId
                 synchronized(downloadProgressMap) {
                     downloadProgressMap.value = downloadProgressMap.value - songId
                 }
@@ -2429,7 +2449,7 @@ fun MainScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .layerBackdrop(playlistBackdrop)
+                    .layerBackdrop(mainBackdrop)
                     .background(MaterialTheme.colorScheme.background)
             ) {
                 com.arcadesoftware.musix.ui.screens.DownloadsScreen(
@@ -2463,7 +2483,7 @@ fun MainScreen() {
             enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
             exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it })
         ) {
-            val currentBackdrop = if (activePlaylistDetail != null) playlistBackdrop else mainBackdrop
+            val currentBackdrop = if (activePlaylistDetail != null || showDownloadsScreen) mainBackdrop else mainBackdrop
             MiniPlayer(
                 backdrop = currentBackdrop,
                 currentSong = currentSong,

@@ -311,6 +311,44 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
+                        val activeDownloads = remember(downloadProgressMap) { downloadProgressMap.filter { it.value < 1.0f } }
+                        val isDownloading = activeDownloads.isNotEmpty()
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isDownloading,
+                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut()
+                        ) {
+                            val averageProgress = remember(activeDownloads) {
+                                if (activeDownloads.isEmpty()) 0f else activeDownloads.values.average().toFloat()
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 12.dp)
+                                    .size(36.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { onOpenDownloads() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    progress = { averageProgress },
+                                    modifier = Modifier.size(32.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp,
+                                    trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = "Downloads Center",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
                         IconButton(onClick = onOpenDrawer) {
                             if (currentUser != null && currentUser?.photoUrl != null) {
                                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
@@ -346,15 +384,6 @@ fun HomeScreen(
                                     modifier = Modifier.size(36.dp)
                                 )
                             }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = onOpenDownloads) {
-                            Icon(
-                                imageVector = Icons.Rounded.Download,
-                                contentDescription = "Downloads Center",
-                                modifier = Modifier.size(28.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
                         }
                     }
                 }

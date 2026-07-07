@@ -79,7 +79,9 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
             db.musicDao().insertPlaylist(
                 com.arcadesoftware.musix.db.entities.PlaylistEntity(name = name)
             )
-            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(getApplication())
+            // Use the suspend version so we're guaranteed the insert is committed
+            // before Firestore reads from the DB — no race condition.
+            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(getApplication())
         }
     }
 
@@ -87,7 +89,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             db.musicDao().clearPlaylistSongs(playlistId)
             db.musicDao().deletePlaylist(playlistId)
-            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(getApplication())
+            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(getApplication())
         }
     }
 }

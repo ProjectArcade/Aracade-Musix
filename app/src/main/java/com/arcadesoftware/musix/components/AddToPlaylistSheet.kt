@@ -143,7 +143,8 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
-                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
+                                    // suspend: runs in same coroutine, sees committed DB data
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(context)
                                     onDismiss()
                                 }
                             }
@@ -165,7 +166,8 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
-                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
+                                    // suspend: runs in same coroutine, sees committed DB data
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(context)
                                     onDismiss()
                                 }
                             }
@@ -249,7 +251,9 @@ fun AddToPlaylistSheet(
                                                 position = Int.MAX_VALUE
                                             )
                                         )
-                                        com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
+                                        // Use suspend sync — schedulePushAllLocalDataToFirestore
+                                        // had a 5-minute delay and never ran in practice.
+                                        com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(context)
                                     }
                                     added = true
                                 }

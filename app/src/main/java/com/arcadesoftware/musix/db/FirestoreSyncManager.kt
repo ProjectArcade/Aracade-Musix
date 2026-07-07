@@ -410,22 +410,26 @@ object FirestoreSyncManager {
         }
     }
 
-    fun syncPlaylists(context: Context) {
+    /**
+     * Suspend version — call this directly inside the same coroutine as your DB write
+     * so the sync always sees the committed data. Never races against the insert.
+     */
+    suspend fun syncPlaylistsSuspend(context: Context) {
         val p = context.getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
         if (!p.getBoolean("sync_playlists", true)) return
         val ref = userRef() ?: return
         val db = AppDatabase.getDatabase(context)
-        syncScope.launch {
-            try {
-                val playlists = db.musicDao().getPlaylists().first()
-                playlists.forEach { playlist ->
-                    val plRef = ref.collection("playlists").document(playlist.id.toString())
-                    plRef.set(mapOf("id" to playlist.id.toString())).await()
-                    plRef.collection("info").document("meta").set(mapOf(
-                        "id" to playlist.id, "name" to playlist.name,
-                        "coverUri" to playlist.coverUri, "createdAt" to playlist.createdAt
-                    )).await()
-                    val songs = db.musicDao().getSongsForPlaylist(playlist.id).first()
+        try {
+            val playlists = db.musicDao().getPlaylists().first()
+            playlists.forEach { playlist ->
+                val plRef = ref.collection("playlists").document(playlist.id.toString())
+                plRef.set(mapOf("id" to playlist.id.toString())).await()
+                plRef.collection("info").document("meta").set(mapOf(
+                    "id" to playlist.id, "name" to playlist.name,
+                    "coverUri" to playlist.coverUri, "createdAt" to playlist.createdAt
+                )).await()
+                val songs = db.musicDao().getSongsForPlaylist(playlist.id).first()
+                if (songs.isNotEmpty()) {
                     var batch = fs().batch(); var count = 0
                     songs.forEachIndexed { index, song ->
                         batch.set(plRef.collection("songs").document(song.id), mapOf(
@@ -439,8 +443,14 @@ object FirestoreSyncManager {
                     }
                     if (count % 400 != 0) batch.commit().await()
                 }
-            } catch (e: Exception) { Log.e(TAG, "syncPlaylists failed", e) }
-        }
+            }
+            Log.d(TAG, "syncPlaylistsSuspend: synced ${playlists.size} playlist(s)")
+        } catch (e: Exception) { Log.e(TAG, "syncPlaylistsSuspend failed", e) }
+    }
+
+    /** Fire-and-forget wrapper for call sites that don't have a coroutine context. */
+    fun syncPlaylists(context: Context) {
+        syncScope.launch { syncPlaylistsSuspend(context) }
     }
 
     // ── Fetch & merge from Firestore ──────────────────────────────────────────

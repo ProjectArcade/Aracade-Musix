@@ -296,11 +296,19 @@ object FirestoreSyncManager {
         }
     }
 
+    private var syncSettingsJob: Job? = null
+
     fun syncSettings(context: Context) {
         val ref = userRef() ?: return
         val p = context.getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
-        syncScope.launch {
+        
+        // Cancel any pending syncSettings job to debounce rapid toggling by the user
+        syncSettingsJob?.cancel()
+        syncSettingsJob = syncScope.launch {
             try {
+                // Coalesce updates by waiting 2 seconds before executing the write
+                kotlinx.coroutines.delay(2000L)
+                
                 ref.collection("settings").document("prefs").set(mapOf(
                     "sync_playlists" to p.getBoolean("sync_playlists", true),
                     "sync_library" to p.getBoolean("sync_library", true),
@@ -310,6 +318,7 @@ object FirestoreSyncManager {
                     "auto_download_playlists" to p.getBoolean("auto_download_playlists", false),
                     "wifi_only_download" to p.getBoolean("wifi_only_download", false)
                 )).await()
+                Log.d(TAG, "syncSettings: settings successfully synced to Firestore")
             } catch (e: Exception) { Log.e(TAG, "syncSettings failed", e) }
         }
     }

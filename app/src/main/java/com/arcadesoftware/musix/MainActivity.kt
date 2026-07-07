@@ -1615,7 +1615,7 @@ fun MainScreen() {
                 else -> !isSystemDark
             }
             val targetCardBg = if (isLightMode) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)
-            val cardBg by androidx.compose.animation.animateColorAsState(targetCardBg, androidx.compose.animation.core.tween(500))
+            val cardBg = targetCardBg
 
             var settingsScreen by remember { mutableStateOf("Main") }
             var showDeleteConfirmDialog by remember { mutableStateOf(false) }

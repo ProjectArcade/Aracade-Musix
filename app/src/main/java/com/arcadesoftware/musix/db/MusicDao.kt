@@ -40,7 +40,7 @@ interface MusicDao {
     suspend fun removeDownloadedSong(songId: String)
 
     // --- Playlists ---
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylist(playlistEntity: PlaylistEntity): Long
 
     @Query("SELECT * FROM playlists ORDER BY createdAt DESC")

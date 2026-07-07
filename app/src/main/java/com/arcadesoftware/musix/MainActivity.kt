@@ -1,4 +1,6 @@
 package com.arcadesoftware.musix
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.clipPath
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -1396,16 +1398,58 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemDark
             }
             
+            var revealState by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+            val view = androidx.compose.ui.platform.LocalView.current
+            
             // Allow MainScreen to update themePref
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalThemePreference provides themePref,
                 LocalThemePreferenceSetter provides { newPref: Int ->
-                    themePref = newPref
-                    sharedPrefs.edit().putInt("theme_preference", newPref).apply()
+                    if (newPref != themePref) {
+                        try {
+                            val bmp = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(bmp)
+                            view.draw(canvas)
+                            revealState = bmp.asImageBitmap()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        themePref = newPref
+                        sharedPrefs.edit().putInt("theme_preference", newPref).apply()
+                    }
                 }
             ) {
                 MusixTheme(darkTheme = darkTheme) {
-                    MainScreen()
+                    androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                        MainScreen()
+                        
+                        revealState?.let { state ->
+                            var radius by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                            val maxRadius = kotlin.math.hypot(view.width.toDouble(), view.height.toDouble()).toFloat()
+                            
+                            androidx.compose.runtime.LaunchedEffect(state) {
+                                androidx.compose.animation.core.animate(
+                                    initialValue = 0f,
+                                    targetValue = maxRadius,
+                                    animationSpec = androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                ) { value, _ ->
+                                    radius = value
+                                }
+                                revealState = null
+                            }
+                            
+                            androidx.compose.foundation.Canvas(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                                val path = androidx.compose.ui.graphics.Path().apply {
+                                    addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+                                    addOval(androidx.compose.ui.geometry.Rect(0f - radius, size.height - radius, 0f + radius, size.height + radius))
+                                    fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+                                }
+                                clipPath(path) {
+                                    drawImage(image = state)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

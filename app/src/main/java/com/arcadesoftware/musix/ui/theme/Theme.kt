@@ -54,66 +54,8 @@ fun MusixTheme(
     }
 
     
-    val primary by androidx.compose.animation.animateColorAsState(targetColorScheme.primary, androidx.compose.animation.core.tween(500))
-    val secondary by androidx.compose.animation.animateColorAsState(targetColorScheme.secondary, androidx.compose.animation.core.tween(500))
-    val tertiary by androidx.compose.animation.animateColorAsState(targetColorScheme.tertiary, androidx.compose.animation.core.tween(500))
-    val background by androidx.compose.animation.animateColorAsState(targetColorScheme.background, androidx.compose.animation.core.tween(500))
-    val surface by androidx.compose.animation.animateColorAsState(targetColorScheme.surface, androidx.compose.animation.core.tween(500))
-    val onPrimary by androidx.compose.animation.animateColorAsState(targetColorScheme.onPrimary, androidx.compose.animation.core.tween(500))
-    val onSecondary by androidx.compose.animation.animateColorAsState(targetColorScheme.onSecondary, androidx.compose.animation.core.tween(500))
-    val onTertiary by androidx.compose.animation.animateColorAsState(targetColorScheme.onTertiary, androidx.compose.animation.core.tween(500))
-    val onBackground by androidx.compose.animation.animateColorAsState(targetColorScheme.onBackground, androidx.compose.animation.core.tween(500))
-    val onSurface by androidx.compose.animation.animateColorAsState(targetColorScheme.onSurface, androidx.compose.animation.core.tween(500))
-    val primaryContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.primaryContainer, androidx.compose.animation.core.tween(500))
-    val onPrimaryContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.onPrimaryContainer, androidx.compose.animation.core.tween(500))
-    val secondaryContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.secondaryContainer, androidx.compose.animation.core.tween(500))
-    val onSecondaryContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.onSecondaryContainer, androidx.compose.animation.core.tween(500))
-    val surfaceVariant by androidx.compose.animation.animateColorAsState(targetColorScheme.surfaceVariant, androidx.compose.animation.core.tween(500))
-    val onSurfaceVariant by androidx.compose.animation.animateColorAsState(targetColorScheme.onSurfaceVariant, androidx.compose.animation.core.tween(500))
-    val outline by androidx.compose.animation.animateColorAsState(targetColorScheme.outline, androidx.compose.animation.core.tween(500))
-    val error by androidx.compose.animation.animateColorAsState(targetColorScheme.error, androidx.compose.animation.core.tween(500))
-    val onError by androidx.compose.animation.animateColorAsState(targetColorScheme.onError, androidx.compose.animation.core.tween(500))
-    val errorContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.errorContainer, androidx.compose.animation.core.tween(500))
-    val onErrorContainer by androidx.compose.animation.animateColorAsState(targetColorScheme.onErrorContainer, androidx.compose.animation.core.tween(500))
-    val inversePrimary by androidx.compose.animation.animateColorAsState(targetColorScheme.inversePrimary, androidx.compose.animation.core.tween(500))
-    val inverseSurface by androidx.compose.animation.animateColorAsState(targetColorScheme.inverseSurface, androidx.compose.animation.core.tween(500))
-    val inverseOnSurface by androidx.compose.animation.animateColorAsState(targetColorScheme.inverseOnSurface, androidx.compose.animation.core.tween(500))
-    val surfaceTint by androidx.compose.animation.animateColorAsState(targetColorScheme.surfaceTint, androidx.compose.animation.core.tween(500))
-    val outlineVariant by androidx.compose.animation.animateColorAsState(targetColorScheme.outlineVariant, androidx.compose.animation.core.tween(500))
-    val scrim by androidx.compose.animation.animateColorAsState(targetColorScheme.scrim, androidx.compose.animation.core.tween(500))
-
-    val colorScheme = targetColorScheme.copy(
-        primary = primary,
-        secondary = secondary,
-        tertiary = tertiary,
-        background = background,
-        surface = surface,
-        onPrimary = onPrimary,
-        onSecondary = onSecondary,
-        onTertiary = onTertiary,
-        onBackground = onBackground,
-        onSurface = onSurface,
-        primaryContainer = primaryContainer,
-        onPrimaryContainer = onPrimaryContainer,
-        secondaryContainer = secondaryContainer,
-        onSecondaryContainer = onSecondaryContainer,
-        surfaceVariant = surfaceVariant,
-        onSurfaceVariant = onSurfaceVariant,
-        outline = outline,
-        error = error,
-        onError = onError,
-        errorContainer = errorContainer,
-        onErrorContainer = onErrorContainer,
-        inversePrimary = inversePrimary,
-        inverseSurface = inverseSurface,
-        inverseOnSurface = inverseOnSurface,
-        surfaceTint = surfaceTint,
-        outlineVariant = outlineVariant,
-        scrim = scrim
-    )
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = targetColorScheme,
         typography = Typography,
         content = content
     )

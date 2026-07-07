@@ -2233,29 +2233,6 @@ fun MainScreen() {
                                 }
                             }
 
-                            androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
-
-                            // Cache Limit controller
-                            var maxCacheSizeGb by remember { mutableStateOf(syncSharedPrefs.getFloat("max_cache_size_gb", 2.0f)) }
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Max Offline Cache Size", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                                    Text("${String.format("%.1f", maxCacheSizeGb)} GB", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Slider(
-                                    value = maxCacheSizeGb,
-                                    onValueChange = {
-                                        maxCacheSizeGb = it
-                                        syncSharedPrefs.edit().putFloat("max_cache_size_gb", it).apply()
-                                    },
-                                    valueRange = 0.5f..10.0f,
-                                    steps = 19
-                                )
-                            }
-
-                            androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
-
                             // Equalizer Link
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable {
@@ -2279,8 +2256,61 @@ fun MainScreen() {
                                 }
                                 Icon(Icons.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                             }
+                            
+                            androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
+
+                            // Collapsible Advanced Settings (Cache controller)
+                            var advancedExpanded by remember { mutableStateOf(false) }
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { advancedExpanded = !advancedExpanded }
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Advanced Settings", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                                        Text("Offline storage limits & cache configuration", fontSize = 12.sp, color = Color.Gray)
+                                    }
+                                    Icon(
+                                        imageVector = if (advancedExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                        contentDescription = if (advancedExpanded) "Collapse" else "Expand",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = Color.Gray
+                                    )
+                                }
+
+                                androidx.compose.animation.AnimatedVisibility(visible = advancedExpanded) {
+                                    var maxCacheSizeGb by remember { mutableStateOf(syncSharedPrefs.getFloat("max_cache_size_gb", 2.0f)) }
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Max Offline Cache Size", fontWeight = FontWeight.Normal, fontSize = 14.sp)
+                                            Text("${String.format("%.1f", maxCacheSizeGb)} GB", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Slider(
+                                            value = maxCacheSizeGb,
+                                            onValueChange = {
+                                                maxCacheSizeGb = it
+                                                syncSharedPrefs.edit().putFloat("max_cache_size_gb", it).apply()
+                                            },
+                                            valueRange = 0.5f..10.0f,
+                                            steps = 19
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text("Playback & Downloads", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp, start = 8.dp))
                         Column(

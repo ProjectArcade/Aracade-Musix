@@ -20,16 +20,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 
 object FirebaseSyncManager {
     private const val TAG = "FirebaseSyncManager"
     var lastSyncedUid: String? = null
     private var syncJob: Job? = null
 
+    // Module-level scope — no lifecycle leak, survives across calls
+    private val syncScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Debounce: track last time history was synced to avoid writing on every song play
+    private var lastHistorySyncMs: Long = 0L
+    private const val HISTORY_SYNC_DEBOUNCE_MS = 5 * 60 * 1000L // 5 minutes
+
     fun schedulePushAllLocalDataToFirebase(context: Context) {
         val appContext = context.applicationContext
         syncJob?.cancel()
-        syncJob = CoroutineScope(Dispatchers.Main).launch {
+        syncJob = syncScope.launch {
             kotlinx.coroutines.delay(5 * 60 * 1000) // 5 minutes delay
             pushAllLocalDataToFirebase(appContext)
         }
@@ -110,8 +118,17 @@ object FirebaseSyncManager {
         val sharedPrefs = context.getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
         if (!sharedPrefs.getBoolean("sync_history", true)) return
         val ref = getDbRef() ?: return
+
+        // Debounce: don't sync more than once every 5 minutes
+        val now = System.currentTimeMillis()
+        if (now - lastHistorySyncMs < HISTORY_SYNC_DEBOUNCE_MS) {
+            Log.d(TAG, "syncHistory skipped — debounce active")
+            return
+        }
+        lastHistorySyncMs = now
+
         val database = AppDatabase.getDatabase(context)
-        CoroutineScope(Dispatchers.IO).launch {
+        syncScope.launch {
             try {
                 val history = database.musicDao().getPlayHistory().first().map {
                     mapOf(
@@ -157,7 +174,7 @@ object FirebaseSyncManager {
         if (!sharedPrefs.getBoolean("sync_playlists", true)) return
         val ref = getDbRef() ?: return
         val database = AppDatabase.getDatabase(context)
-        CoroutineScope(Dispatchers.IO).launch {
+        syncScope.launch {
             try {
                 val playlistsList = database.musicDao().getPlaylists().first()
                 val playlistData = playlistsList.map { playlist ->
@@ -319,20 +336,24 @@ object FirebaseSyncManager {
                             HomeCacheManager.save(context, localPair.first, mergedRecs)
                         }
 
-                        // 6. Playlists
+                        // 6. Playlists — use stored id to prevent duplication on re-sync
                         val playlistsSnap = snapshot.child("playlists")
                         if (playlistsSnap.exists()) {
                             playlistsSnap.children.forEach { child ->
+                                val storedId = (child.child("id").value as? Number)?.toLong() ?: 0L
                                 val name = child.child("name").value as? String ?: return@forEach
                                 val coverUri = child.child("coverUri").value as? String
                                 val createdAt = (child.child("createdAt").value as? Number)?.toLong() ?: System.currentTimeMillis()
-                                
-                                val playlistEntity = PlaylistEntity(name = name, coverUri = coverUri, createdAt = createdAt)
+
+                                // Use the stored remote id so Room's IGNORE strategy prevents duplicate inserts
+                                val playlistEntity = PlaylistEntity(id = storedId, name = name, coverUri = coverUri, createdAt = createdAt)
                                 val playlistId = database.musicDao().insertPlaylist(playlistEntity)
-                                
+                                // insertPlaylist returns -1 when IGNORE fires (playlist already exists)
+                                val effectiveId = if (playlistId == -1L) storedId else playlistId
+
                                 child.child("songs").children.forEachIndexed { index, songChild ->
                                     val songId = songChild.child("songId").value as? String ?: return@forEachIndexed
-                                    
+
                                     val songMeta = songChild.child("songMetadata")
                                     if (songMeta.exists()) {
                                         val title = songMeta.child("title").value as? String ?: "Unknown"
@@ -343,14 +364,18 @@ object FirebaseSyncManager {
                                             PlayHistoryEntity(songId, title, artistName, artistId, thumbnailUrl)
                                         )
                                     }
-                                    
-                                    val songEntity = PlaylistSongEntity(
-                                        playlistId = playlistId,
-                                        songId = songId,
-                                        position = index,
-                                        addedAt = (songChild.child("addedAt").value as? Number)?.toLong() ?: System.currentTimeMillis()
-                                    )
-                                    database.musicDao().insertPlaylistSong(songEntity)
+
+                                    // Only add the song if it's not already in the playlist
+                                    val alreadyInPlaylist = database.musicDao().isSongInPlaylist(effectiveId, songId) > 0
+                                    if (!alreadyInPlaylist) {
+                                        val songEntity = PlaylistSongEntity(
+                                            playlistId = effectiveId,
+                                            songId = songId,
+                                            position = index,
+                                            addedAt = (songChild.child("addedAt").value as? Number)?.toLong() ?: System.currentTimeMillis()
+                                        )
+                                        database.musicDao().insertPlaylistSong(songEntity)
+                                    }
                                 }
                             }
                         }

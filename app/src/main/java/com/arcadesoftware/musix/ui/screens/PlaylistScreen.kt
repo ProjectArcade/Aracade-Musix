@@ -60,11 +60,11 @@ import kotlinx.coroutines.withContext
 class PlaylistViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     val downloadedSongs: StateFlow<List<DownloadedSongEntity>> = db.musicDao().getDownloadedSongs()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val playHistory: StateFlow<List<com.arcadesoftware.musix.db.entities.PlayHistoryEntity>> = db.musicDao().getPlayHistory()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val userPlaylists: StateFlow<List<com.arcadesoftware.musix.db.entities.PlaylistEntity>> =
-        db.musicDao().getPlaylists().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        db.musicDao().getPlaylists().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun deleteSong(songId: String, localFilePath: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -79,7 +79,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
             db.musicDao().insertPlaylist(
                 com.arcadesoftware.musix.db.entities.PlaylistEntity(name = name)
             )
-            com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(getApplication())
+            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(getApplication())
         }
     }
 
@@ -87,7 +87,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             db.musicDao().clearPlaylistSongs(playlistId)
             db.musicDao().deletePlaylist(playlistId)
-            com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(getApplication())
+            com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(getApplication())
         }
     }
 }
@@ -605,6 +605,8 @@ private fun UserPlaylistDetailScreen(
                     )
                 )
             }
+            
+            val currentSong by PlayerManager.currentSong.collectAsState()
 
             LazyColumn(
                 state = listState,
@@ -757,7 +759,7 @@ private fun UserPlaylistDetailScreen(
                 }
 
                 itemsIndexed(songs) { index, songEntity ->
-                    val isPlaying = PlayerManager.currentSong.collectAsState().value?.id == songEntity.id
+                    val isPlaying = currentSong?.id == songEntity.id
                     val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
                     Row(
@@ -982,7 +984,7 @@ private fun UserPlaylistDetailScreen(
                             .clickable {
                                 scope.launch(Dispatchers.IO) {
                                     db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
                                 }
                                 showSongOptionsSheet = null
                             }
@@ -1004,7 +1006,7 @@ private fun UserPlaylistDetailScreen(
                                     val file = java.io.File(context.filesDir, "downloads/${selectedSong.id}.m4a")
                                     if (file.exists()) file.delete()
                                     db.musicDao().removeSongFromPlaylist(playlist.id, selectedSong.id)
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
                                 }
                                 showSongOptionsSheet = null
                             }

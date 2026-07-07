@@ -33,7 +33,7 @@ object LikedSongsManager {
             true
         }
         prefs.edit().putStringSet(KEY_LIKED_IDS, set).apply()
-        FirebaseSyncManager.syncLikedSongs(context)
+        FirestoreSyncManager.syncLikedSongs(context)
         return isNowLiked
     }
 }

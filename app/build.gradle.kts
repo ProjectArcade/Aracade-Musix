@@ -13,8 +13,8 @@ android {
         applicationId = "com.arcadesoftware.musix"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.2.22"
+        versionCode = 13
+        versionName = "1.3.28"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,6 +36,15 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            // Prevent protobuf descriptor merge conflicts (BOM handles classes; this handles META-INF)
+            pickFirsts += setOf(
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                "google/protobuf/*.proto"
+            )
+        }
+    }
 }
 
 dependencies {
@@ -52,8 +61,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.compose.material:material:1.6.0")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.database)
+    // Firebase BOM — aligns ALL Firebase + protobuf versions, prevents duplicate class conflicts
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-database-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-inappmessaging-display")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation(libs.googleid)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

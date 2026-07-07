@@ -143,7 +143,7 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
                                     onDismiss()
                                 }
                             }
@@ -165,7 +165,7 @@ fun AddToPlaylistSheet(
                                             position = 0
                                         )
                                     )
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
                                     onDismiss()
                                 }
                             }
@@ -239,16 +239,18 @@ fun AddToPlaylistSheet(
                             .fillMaxWidth()
                             .clickable(enabled = !added) {
                                 scope.launch(Dispatchers.IO) {
-                                    // Get current song count to set position
-                                    val existing = db.musicDao().getSongsForPlaylist(playlist.id)
-                                    db.musicDao().insertPlaylistSong(
-                                        PlaylistSongEntity(
-                                            playlistId = playlist.id,
-                                            songId = song.id,
-                                            position = Int.MAX_VALUE // Room will just append
+                                    // Guard against duplicate song entries in the same playlist
+                                    val alreadyAdded = db.musicDao().isSongInPlaylist(playlist.id, song.id) > 0
+                                    if (!alreadyAdded) {
+                                        db.musicDao().insertPlaylistSong(
+                                            PlaylistSongEntity(
+                                                playlistId = playlist.id,
+                                                songId = song.id,
+                                                position = Int.MAX_VALUE
+                                            )
                                         )
-                                    )
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncPlaylists(context)
+                                        com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylists(context)
+                                    }
                                     added = true
                                 }
                             }

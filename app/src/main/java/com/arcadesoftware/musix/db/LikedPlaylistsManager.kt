@@ -68,7 +68,7 @@ object LikedPlaylistsManager {
             .edit()
             .putString(KEY_LIKED_LIST, jsonArray.toString())
             .apply()
-        FirebaseSyncManager.syncLikedPlaylists(context)
+        FirestoreSyncManager.syncLikedPlaylists(context)
     }
 
     fun saveLikedPlaylists(context: Context, list: List<LikedPlaylist>) {

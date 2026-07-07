@@ -30,7 +30,8 @@ object HomeCacheManager {
         } catch (e: Exception) {
             android.util.Log.e("HomeCacheManager", "Failed to save recommendations", e)
         }
-        com.arcadesoftware.musix.db.FirebaseSyncManager.syncRecommendations(context)
+        // Recommendations are YouTube-derived and not user-specific data;
+        // no need to sync them to Firestore. They are cached locally only.
     }
 
     @Suppress("UNCHECKED_CAST")

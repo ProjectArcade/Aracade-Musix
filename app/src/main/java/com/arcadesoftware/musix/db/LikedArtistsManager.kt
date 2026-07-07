@@ -38,7 +38,7 @@ object LikedArtistsManager {
             true
         }
         prefs.edit().putStringSet(KEY_LIKED_IDS, set).apply()
-        FirebaseSyncManager.syncLikedArtists(context)
+        FirestoreSyncManager.syncLikedArtists(context)
         return isNowLiked
     }
 

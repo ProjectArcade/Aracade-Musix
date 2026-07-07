@@ -627,7 +627,7 @@ object PlayerManager {
                             thumbnailUrl = song.thumbnail
                         )
                     )
-                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncHistory(context.applicationContext)
+                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncHistory(context.applicationContext)
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Download job exception: ${e.message}", e)
@@ -784,7 +784,7 @@ object PlayerManager {
                             thumbnailUrl = resolvedSong.thumbnail
                         )
                     )
-                    com.arcadesoftware.musix.db.FirebaseSyncManager.syncHistory(ctx)
+                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncHistory(ctx)
                 }
             }
 
@@ -1466,26 +1466,33 @@ fun MainScreen() {
         }
     }
 
+
     LaunchedEffect(Unit) {
         com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
             val user = auth.currentUser
             currentUser = user
-            if (user != null && user.uid != com.arcadesoftware.musix.db.FirebaseSyncManager.lastSyncedUid) {
-                com.arcadesoftware.musix.db.FirebaseSyncManager.lastSyncedUid = user.uid
-                com.arcadesoftware.musix.db.FirebaseSyncManager.fetchAndMergeFirebaseData(context) {
-                    com.arcadesoftware.musix.db.FirebaseSyncManager.pushAllLocalDataToFirebase(context)
-                    (context as? android.app.Activity)?.runOnUiThread {
-                        (context as? android.app.Activity)?.recreate()
+            if (user != null && user.uid != com.arcadesoftware.musix.db.FirestoreSyncManager.lastSyncedUid) {
+                com.arcadesoftware.musix.db.FirestoreSyncManager.lastSyncedUid = user.uid
+                // Step 1: Migrate RTDB → Firestore (no-op if already migrated)
+                com.arcadesoftware.musix.db.FirestoreSyncManager.migrateFromRtdbIfNeeded(context) {
+                    // Step 2: Fetch & merge Firestore data into local Room DB
+                    com.arcadesoftware.musix.db.FirestoreSyncManager.fetchAndMergeFirestoreData(context) {
+                        // Step 3: Push local data up to Firestore
+                        com.arcadesoftware.musix.db.FirestoreSyncManager.pushAllLocalDataToFirestore(context)
+                        (context as? android.app.Activity)?.runOnUiThread {
+                            (context as? android.app.Activity)?.recreate()
+                        }
                     }
                 }
-            } else if (user == null && com.arcadesoftware.musix.db.FirebaseSyncManager.lastSyncedUid != null) {
-                com.arcadesoftware.musix.db.FirebaseSyncManager.lastSyncedUid = null
+            } else if (user == null && com.arcadesoftware.musix.db.FirestoreSyncManager.lastSyncedUid != null) {
+                com.arcadesoftware.musix.db.FirestoreSyncManager.lastSyncedUid = null
                 (context as? android.app.Activity)?.runOnUiThread {
                     (context as? android.app.Activity)?.recreate()
                 }
             }
         }
     }
+
 
     if (showAccountSheet) {
         ModalBottomSheet(
@@ -1547,7 +1554,7 @@ fun MainScreen() {
                                         com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(authCredential)
                                             .addOnSuccessListener {
                                                 isSigningIn = false
-                                                com.arcadesoftware.musix.db.FirebaseSyncManager.syncUserDetails(context)
+                                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncUserDetails(context)
                                                 showWelcomePopup = true
                                                 scope.launch {
                                                     kotlinx.coroutines.delay(2500)
@@ -1666,7 +1673,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     syncPlaylists = enabled
                                     sharedPrefs.edit().putBoolean("sync_playlists", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1688,7 +1695,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     syncLibrary = enabled
                                     sharedPrefs.edit().putBoolean("sync_library", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1710,7 +1717,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     syncHistory = enabled
                                     sharedPrefs.edit().putBoolean("sync_history", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1749,7 +1756,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     resumePlayback = enabled
                                     sharedPrefs.edit().putBoolean("resume_playback", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1771,7 +1778,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     alwaysShuffle = enabled
                                     sharedPrefs.edit().putBoolean("always_shuffle", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1793,7 +1800,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     autoDownloadPlaylists = enabled
                                     sharedPrefs.edit().putBoolean("auto_download_playlists", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1815,7 +1822,7 @@ fun MainScreen() {
                                 onSelect = { enabled ->
                                     wifiOnlyDownload = enabled
                                     sharedPrefs.edit().putBoolean("wifi_only_download", enabled).apply()
-                                    com.arcadesoftware.musix.db.FirebaseSyncManager.schedulePushAllLocalDataToFirebase(context)
+                                    com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                 },
                                 backdrop = mainBackdrop
                             )
@@ -1827,11 +1834,11 @@ fun MainScreen() {
                     Button(
                         onClick = {
                             showAccountSheet = false
-                            com.arcadesoftware.musix.db.FirebaseSyncManager.pushAllLocalDataToFirebaseImmediately(context) {
-                                com.arcadesoftware.musix.db.FirebaseSyncManager.clearAllLocalData(context)
-                                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                com.arcadesoftware.musix.components.ByeAnimManager.trigger()
-                            }
+                            // Push final data snapshot before signing out, then sign out
+                            com.arcadesoftware.musix.db.FirestoreSyncManager.pushAllLocalDataToFirestore(context)
+                            com.arcadesoftware.musix.db.FirestoreSyncManager.clearAllLocalData(context)
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                            com.arcadesoftware.musix.components.ByeAnimManager.trigger()
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(

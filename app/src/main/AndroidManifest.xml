@@ -10,9 +10,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_iconic"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_iconic"
         android:supportsRtl="true"
         android:theme="@style/Theme.Musix">
         
@@ -33,8 +33,8 @@
             android:name=".MainActivityDefault"
             android:enabled="true"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
+            android:icon="@mipmap/ic_iconic"
+            android:roundIcon="@mipmap/ic_iconic"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -146,6 +146,18 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".MainActivityIconic3dsoft"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_icon3dsoft"
+            android:roundIcon="@mipmap/ic_icon3dsoft"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <activity
             android:name=".SearchActivity"
             android:exported="false"

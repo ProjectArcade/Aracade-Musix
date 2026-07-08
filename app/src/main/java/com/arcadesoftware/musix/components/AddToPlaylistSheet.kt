@@ -136,14 +136,11 @@ fun AddToPlaylistSheet(
                                     val playlistId = db.musicDao().insertPlaylist(
                                         PlaylistEntity(name = newPlaylistName.trim())
                                     )
-                                     db.musicDao().insertPlayHistory(
-                                         com.arcadesoftware.musix.db.entities.PlayHistoryEntity(
-                                             id = song.id,
                                     db.musicDao().insertPlayHistory(
                                         com.arcadesoftware.musix.db.entities.PlayHistoryEntity(
                                             id = song.id,
                                             title = song.title,
-                                            artistName = song.artistName ?: "Unknown Artist",
+                                            artistName = song.artists?.firstOrNull()?.name ?: "Unknown Artist",
                                             artistId = song.artists?.firstOrNull()?.id,
                                             thumbnailUrl = song.thumbnail ?: ""
                                         )
@@ -175,7 +172,7 @@ fun AddToPlaylistSheet(
                                         com.arcadesoftware.musix.db.entities.PlayHistoryEntity(
                                             id = song.id,
                                             title = song.title,
-                                            artistName = song.artistName ?: "Unknown Artist",
+                                            artistName = song.artists?.firstOrNull()?.name ?: "Unknown Artist",
                                             artistId = song.artists?.firstOrNull()?.id,
                                             thumbnailUrl = song.thumbnail ?: ""
                                         )
@@ -269,7 +266,7 @@ fun AddToPlaylistSheet(
                                             com.arcadesoftware.musix.db.entities.PlayHistoryEntity(
                                                 id = song.id,
                                                 title = song.title,
-                                                artistName = song.artistName ?: "Unknown Artist",
+                                                artistName = song.artists?.firstOrNull()?.name ?: "Unknown Artist",
                                                 artistId = song.artists?.firstOrNull()?.id,
                                                 thumbnailUrl = song.thumbnail ?: ""
                                             )

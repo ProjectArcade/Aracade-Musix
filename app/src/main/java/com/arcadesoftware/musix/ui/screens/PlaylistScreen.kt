@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 
 class PlaylistViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
@@ -76,12 +77,21 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
 
     fun createPlaylist(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            db.musicDao().insertPlaylist(
+            val generatedId = db.musicDao().insertPlaylist(
                 com.arcadesoftware.musix.db.entities.PlaylistEntity(name = name)
             )
             // Use the suspend version so we're guaranteed the insert is committed
             // before Firestore reads from the DB — no race condition.
             com.arcadesoftware.musix.db.FirestoreSyncManager.syncPlaylistsSuspend(getApplication())
+            
+            // Fetch the newly inserted playlist from the database to open it automatically in the UI
+            val playlists = db.musicDao().getPlaylists().first()
+            val newPlaylist = playlists.find { it.id == generatedId || it.name == name }
+            if (newPlaylist != null) {
+                withContext(Dispatchers.Main) {
+                    PlayerManager.activeUserPlaylist.value = newPlaylist
+                }
+            }
         }
     }
 

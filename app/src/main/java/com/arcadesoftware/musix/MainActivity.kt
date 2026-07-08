@@ -1385,8 +1385,12 @@ object AppIconManager {
         val specialAlias = android.content.ComponentName(context, "$packageName.MainActivitySpecial1")
         val sketchAlias = android.content.ComponentName(context, "$packageName.MainActivitySketch")
         val softAlias = android.content.ComponentName(context, "$packageName.MainActivity3dsoft")
+        val iconic3dsoftAlias = android.content.ComponentName(context, "$packageName.MainActivityIconic3dsoft")
 
-        val components = listOf(defaultAlias, blueAlias, comicAlias, grad2Alias, miniAlias, orangeAlias, specialAlias, sketchAlias, softAlias)
+        val components = listOf(
+            defaultAlias, blueAlias, comicAlias, grad2Alias, miniAlias,
+            orangeAlias, specialAlias, sketchAlias, softAlias, iconic3dsoftAlias
+        )
         val enableComponent = components[iconIndex]
         
         components.forEach {
@@ -2191,7 +2195,7 @@ fun MainScreen() {
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             val icons = listOf(
-                                R.mipmap.ic_launcher,
+                                R.mipmap.ic_iconic,
                                 R.mipmap.ic_launcher_bluegradient,
                                 R.mipmap.ic_launcher_comic1,
                                 R.mipmap.ic_launcher_gradient2,
@@ -2199,10 +2203,21 @@ fun MainScreen() {
                                 R.mipmap.ic_launcher_orange,
                                 R.mipmap.ic_launcher_special1,
                                 R.mipmap.ic_launcher_sketch,
-                                R.mipmap.ic_launcher_3dsoft
+                                R.mipmap.ic_launcher_3dsoft,
+                                R.mipmap.ic_icon3dsoft
                             )
-                            val iconNames = listOf("Default", "Blue", "Comic", "Grad 2", "Mini", "Orange", "Special", "Sketch", "3D Soft")
-                            
+                            val iconNames = listOf(
+                                "Iconic",
+                                "Azure",
+                                "Comic",
+                                "Gradient",
+                                "Minimal",
+                                "Amber",
+                                "Signature",
+                                "Sketch",
+                                "Soft 3D",
+                                "Iconic 3D"
+                            )
                             items(icons.size) { index ->
                                 val iconRes = icons[index]
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {

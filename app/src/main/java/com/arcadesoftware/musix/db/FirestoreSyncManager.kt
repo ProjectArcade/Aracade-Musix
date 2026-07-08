@@ -328,11 +328,25 @@ object FirestoreSyncManager {
         if (!p.getBoolean("sync_library", true)) return
         val ref = userRef() ?: return
         val ids = LikedSongsManager.getLikedSongIds(context).toList()
+        val localIdsSet = ids.toSet()
         try {
             ref.collection("liked_songs").document("ids").set(mapOf("ids" to ids)).await()
+            
+            // Clean up unliked song metadata from Firestore
+            val remoteDocs = ref.collection("liked_songs_metadata").get().await().documents
+            var batch = fs().batch(); var count = 0
+            remoteDocs.forEach { doc ->
+                if (!localIdsSet.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_songs_metadata").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs().batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+            
             val historyList = AppDatabase.getDatabase(context).musicDao().getPlayHistory().first()
             if (historyList.isNotEmpty()) {
-                var batch = fs().batch(); var count = 0
+                batch = fs().batch(); count = 0
                 for (id in ids) {
                     val song = historyList.find { it.id == id } ?: continue
                     batch.set(ref.collection("liked_songs_metadata").document(id), mapOf(
@@ -357,15 +371,28 @@ object FirestoreSyncManager {
         if (!p.getBoolean("sync_library", true)) return
         val ref = userRef() ?: return
         val artists = LikedArtistsManager.getLikedArtists(context)
+        val localIdsSet = artists.mapNotNull { it.id }.toSet()
         try {
+            // Clean up unliked/unfollowed artists from Firestore
+            val remoteDocs = ref.collection("liked_artists").get().await().documents
             var batch = fs().batch(); var count = 0
+            remoteDocs.forEach { doc ->
+                if (!localIdsSet.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_artists").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs().batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+
+            batch = fs().batch(); count = 0
             artists.forEach { a ->
                 a.id?.let { id ->
                     batch.set(ref.collection("liked_artists").document(id),
                         mapOf("id" to id, "name" to a.name, "thumbnailUrl" to a.thumbnailUrl))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs().batch() }
                 }
-                count++
-                if (count % 400 == 0) { batch.commit().await(); batch = fs().batch() }
             }
             if (count % 400 != 0) batch.commit().await()
         } catch (e: Exception) { Log.e(TAG, "syncLikedArtistsSuspend failed", e) }
@@ -380,8 +407,21 @@ object FirestoreSyncManager {
         if (!p.getBoolean("sync_library", true)) return
         val ref = userRef() ?: return
         val playlists = LikedPlaylistsManager.getLikedPlaylists(context)
+        val localIdsSet = playlists.map { it.id }.toSet()
         try {
+            // Clean up unliked playlists from Firestore
+            val remoteDocs = ref.collection("liked_playlists").get().await().documents
             var batch = fs().batch(); var count = 0
+            remoteDocs.forEach { doc ->
+                if (!localIdsSet.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_playlists").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs().batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+
+            batch = fs().batch(); count = 0
             playlists.forEach { pl ->
                 batch.set(ref.collection("liked_playlists").document(pl.id), mapOf(
                     "id" to pl.id, "title" to pl.title, "thumbnail" to pl.thumbnail,
@@ -545,7 +585,7 @@ object FirestoreSyncManager {
                 if (likedIdsDoc.exists()) {
                     @Suppress("UNCHECKED_CAST")
                     val remoteIds = (likedIdsDoc.get("ids") as? List<String>)?.toSet() ?: emptySet()
-                    LikedSongsManager.saveLikedSongIds(context, LikedSongsManager.getLikedSongIds(context) + remoteIds)
+                    LikedSongsManager.saveLikedSongIds(context, remoteIds)
                 }
 
                 // Liked Songs Metadata → Room
@@ -563,10 +603,7 @@ object FirestoreSyncManager {
                     val id = doc.getString("id") ?: return@mapNotNull null
                     LibraryArtist(id, doc.getString("name") ?: "Unknown Artist", doc.getString("thumbnailUrl"), emptyList())
                 }
-                LikedArtistsManager.saveLikedArtists(
-                    context,
-                    (LikedArtistsManager.getLikedArtists(context) + remoteArtists).distinctBy { it.id }
-                )
+                LikedArtistsManager.saveLikedArtists(context, remoteArtists)
 
                 // Liked Playlists
                 val remoteLikedPlaylists = ref.collection("liked_playlists").get().await().documents.mapNotNull { doc ->
@@ -577,10 +614,7 @@ object FirestoreSyncManager {
                         doc.getString("subtitle") ?: ""
                     )
                 }
-                LikedPlaylistsManager.saveLikedPlaylists(
-                    context,
-                    (LikedPlaylistsManager.getLikedPlaylists(context) + remoteLikedPlaylists).distinctBy { it.id }
-                )
+                LikedPlaylistsManager.saveLikedPlaylists(context, remoteLikedPlaylists)
 
                 // History → Room
                 ref.collection("history")

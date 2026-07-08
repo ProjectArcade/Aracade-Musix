@@ -67,9 +67,21 @@ class FirestoreSyncWorker(
                 .set(mapOf("ids" to ids)).await()
 
             // ── 2. Liked Songs Metadata ─────────────────────────────────────
+            val localSongIds = ids.toSet()
+            val remoteSongDocs = ref.collection("liked_songs_metadata").get().await().documents
+            var batch = fs.batch(); var count = 0
+            remoteSongDocs.forEach { doc ->
+                if (!localSongIds.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_songs_metadata").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs.batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+
             val historyList = db.musicDao().getPlayHistory().first()
             if (ids.isNotEmpty() && historyList.isNotEmpty()) {
-                var batch = fs.batch(); var count = 0
+                batch = fs.batch(); count = 0
                 for (id in ids) {
                     val song = historyList.find { it.id == id } ?: continue
                     batch.set(ref.collection("liked_songs_metadata").document(id), mapOf(
@@ -85,8 +97,20 @@ class FirestoreSyncWorker(
 
             // ── 3. Liked Artists ────────────────────────────────────────────
             val artists = LikedArtistsManager.getLikedArtists(ctx)
+            val localArtistIds = artists.mapNotNull { it.id }.toSet()
+            val remoteArtistDocs = ref.collection("liked_artists").get().await().documents
+            batch = fs.batch(); count = 0
+            remoteArtistDocs.forEach { doc ->
+                if (!localArtistIds.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_artists").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs.batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+
             if (artists.isNotEmpty()) {
-                var batch = fs.batch(); var count = 0
+                batch = fs.batch(); count = 0
                 artists.forEach { a ->
                     a.id?.let { id ->
                         batch.set(ref.collection("liked_artists").document(id),
@@ -100,8 +124,20 @@ class FirestoreSyncWorker(
 
             // ── 4. Liked Playlists ──────────────────────────────────────────
             val likedPlaylists = LikedPlaylistsManager.getLikedPlaylists(ctx)
+            val localPlaylistIds = likedPlaylists.map { it.id }.toSet()
+            val remotePlaylistDocs = ref.collection("liked_playlists").get().await().documents
+            batch = fs.batch(); count = 0
+            remotePlaylistDocs.forEach { doc ->
+                if (!localPlaylistIds.contains(doc.id)) {
+                    batch.delete(ref.collection("liked_playlists").document(doc.id))
+                    count++
+                    if (count % 400 == 0) { batch.commit().await(); batch = fs.batch() }
+                }
+            }
+            if (count % 400 != 0) batch.commit().await()
+
             if (likedPlaylists.isNotEmpty()) {
-                var batch = fs.batch(); var count = 0
+                batch = fs.batch(); count = 0
                 likedPlaylists.forEach { pl ->
                     batch.set(ref.collection("liked_playlists").document(pl.id), mapOf(
                         "id" to pl.id, "title" to pl.title, "thumbnail" to pl.thumbnail,

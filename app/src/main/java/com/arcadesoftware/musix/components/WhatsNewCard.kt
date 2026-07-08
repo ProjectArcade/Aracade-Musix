@@ -22,6 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
 import com.arcadesoftware.musix.R
 import kotlinx.coroutines.launch
@@ -88,6 +91,17 @@ fun WhatsNewDialog(
                     modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
                 )
 
+                val infiniteTransition = rememberInfiniteTransition(label = "whats_new_glow")
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(4000, easing = androidx.compose.animation.core.LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "border_rotation"
+                )
+
                 // Pager
                 HorizontalPager(
                     state = pagerState,
@@ -101,22 +115,49 @@ fun WhatsNewDialog(
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Image Container with rounded corners
+                        // Image Container with rotating glowing border
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(24.dp))
-                                .background(Color(0xFF141416)),
+                                .height(262.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            coil.compose.AsyncImage(
-                                model = feature.imageRes,
-                                contentDescription = feature.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                            // Rotating border
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(262.dp)
+                                    .graphicsLayer { rotationZ = rotation }
+                                    .border(
+                                        2.5.dp,
+                                        androidx.compose.ui.graphics.Brush.sweepGradient(
+                                            listOf(
+                                                Color(0xFF00FFFF),
+                                                Color(0xFFFF00FF),
+                                                Color(0xFFFFCC00),
+                                                Color(0xFF00FFFF)
+                                            )
+                                        ),
+                                        RoundedCornerShape(24.dp)
+                                    )
                             )
+                            // Static inner image
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(260.dp)
+                                    .padding(2.dp)
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .background(Color(0xFF141416)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = feature.imageRes),
+                                    contentDescription = feature.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(32.dp))

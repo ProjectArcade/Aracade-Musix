@@ -467,13 +467,21 @@ object PlayerManager {
                             val currentMode = repeatMode.value
                             val currentIndex = currentQueueIndex.value
                             val currentQueue = queue.value
-                            if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ONE) {
-                                // Repeat current song once, then revert to OFF
+
+                            if (currentQueue.isEmpty()) {
+                                // Nothing to play
+                                releaseWakeLock()
+                                exoPlayer?.playWhenReady = false
+                            } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ONE) {
+                                // ── Repeat current song ONCE, then revert to OFF ──
+                                // Works for both single song and any position in a playlist
                                 repeatMode.value = androidx.media3.common.Player.REPEAT_MODE_OFF
-                                exoPlayer?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+                                triggerNotificationUpdate() // refresh icon immediately
                                 playInternal(currentQueue[currentIndex])
-                            } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ALL && currentQueue.isNotEmpty()) {
-                                // Loop forever: if not at end of queue advance, else wrap around
+                            } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ALL) {
+                                // ── Loop forever ──
+                                // Single song: currentIndex == size-1 == 0, wraps back to itself
+                                // Playlist: advance through queue; wrap to start at end
                                 if (currentIndex < currentQueue.size - 1) {
                                     currentQueueIndex.value = currentIndex + 1
                                     playInternal(currentQueue[currentIndex + 1])
@@ -482,9 +490,11 @@ object PlayerManager {
                                     playInternal(currentQueue[0])
                                 }
                             } else if (currentIndex < currentQueue.size - 1) {
+                                // ── Normal: advance to next song in queue ──
                                 currentQueueIndex.value = currentIndex + 1
                                 playInternal(currentQueue[currentIndex + 1])
                             } else if (autoPlayEnabled.value) {
+                                // ── End of queue: fetch YouTube autoplay suggestions ──
                                 currentSong.value?.let { song ->
                                     scope.launch {
                                         val endpoint = WatchEndpoint(videoId = song.id)
@@ -3657,19 +3667,31 @@ fun MiniPlayer(
                                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
                             )
                             
-                            // Draw progress arc
-                            drawArc(
-                                color = contentColor,
-                                startAngle = -90f,
-                                sweepAngle = playbackProgress * 360f,
-                                useCenter = false,
-                                topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
-                                size = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = strokeWidth,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            // Draw progress arc with gradient
+                            if (playbackProgress > 0f) {
+                                val gradientBrush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                                    colors = listOf(
+                                        Color(0xFFFA243C),
+                                        Color(0xFF8B5CF6),
+                                        Color(0xFF06B6D4),
+                                        Color(0xFFEC4899),
+                                        Color(0xFFFA243C)
+                                    ),
+                                    center = centerOffset
                                 )
-                            )
+                                drawArc(
+                                    brush = gradientBrush,
+                                    startAngle = -90f,
+                                    sweepAngle = playbackProgress * 360f,
+                                    useCenter = false,
+                                    topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
+                                    size = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = strokeWidth,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    )
+                                )
+                            }
                         }
 
                         Icon(

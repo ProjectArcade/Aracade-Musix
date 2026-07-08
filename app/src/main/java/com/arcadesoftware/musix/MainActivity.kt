@@ -3668,6 +3668,15 @@ fun MiniPlayer(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Album art / Lyrics Box
+                    val artInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                    val artRotation by artInfiniteTransition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                        )
+                    )
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3682,6 +3691,25 @@ fun MiniPlayer(
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
+                        )
+
+                        // Rotating gradient border box on top
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = artRotation }
+                                .border(
+                                    3.dp,
+                                    androidx.compose.ui.graphics.Brush.sweepGradient(
+                                        listOf(
+                                            Color.Cyan,
+                                            Color.Magenta,
+                                            Color.Yellow,
+                                            Color.Cyan
+                                        )
+                                    ),
+                                    RoundedCornerShape(24.dp)
+                                )
                         )
 
                         // Lyrics overlay slides on top

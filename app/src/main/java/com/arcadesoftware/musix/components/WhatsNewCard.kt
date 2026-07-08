@@ -69,7 +69,7 @@ fun WhatsNewDialog(
         WhatsNewFeature(
             title = "Bug Fixes & Optimization",
             description = "Enjoy zero-lag rotating border shaders, authoritative unlike local sync, loop controls, and instant Bluetooth audio routing.",
-            imageRes = R.drawable.whatsnew_3
+            imageRes = R.drawable.whatsnew_5
         )
     )
 

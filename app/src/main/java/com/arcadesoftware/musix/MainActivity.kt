@@ -4362,7 +4362,13 @@ fun MiniPlayer(
                             valueRange = 0f..1f,
                             visibilityThreshold = 0.001f,
                             backdrop = backdrop,
-                            accentColor = Color(0xFFFA243C), // appleRed accent to differentiate from progress slider
+                            accentColor = Color(0xFFFA243C),
+                            colors = listOf(
+                                Color(0xFFFA243C),
+                                Color(0xFFFF5E3A),
+                                Color(0xFFFFCC00),
+                                Color(0xFFFA243C)
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                     }

@@ -819,7 +819,8 @@ fun LiquidSlider(
     backdrop: com.kyant.backdrop.Backdrop,
     modifier: Modifier = Modifier,
     accentColor: Color = Color(0xFFFA243C),
-    onValueChangeFinished: (() -> Unit)? = null
+    onValueChangeFinished: (() -> Unit)? = null,
+    colors: List<Color>? = null
 ) {
     val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
     val trackColor =
@@ -942,9 +943,9 @@ fun LiquidSlider(
                         repeatMode = androidx.compose.animation.core.RepeatMode.Restart
                     )
                 )
-                val sliderTrackBrush = remember(sliderTrackOffset) {
+                val sliderTrackBrush = remember(sliderTrackOffset, colors) {
                     androidx.compose.ui.graphics.Brush.linearGradient(
-                        colors = listOf(
+                        colors = colors ?: listOf(
                             Color.Cyan,
                             Color.Magenta,
                             Color.Yellow,

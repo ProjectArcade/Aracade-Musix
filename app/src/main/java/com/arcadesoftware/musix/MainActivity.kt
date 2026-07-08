@@ -3892,6 +3892,22 @@ fun MiniPlayer(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Seekbar with time labels
+                    val sliderInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                    val sliderColorFraction by sliderInfiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 3f,
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                        )
+                    )
+                    val animatedSliderColor = remember(sliderColorFraction) {
+                        val colors = listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
+                        val segment = sliderColorFraction.toInt().coerceIn(0, 2)
+                        val progress = sliderColorFraction - segment
+                        androidx.compose.ui.graphics.lerp(colors[segment], colors[segment + 1], progress)
+                    }
+
                     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
                     val sliderValue = sliderDragValue
                         ?: (if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f)
@@ -3910,7 +3926,7 @@ fun MiniPlayer(
                         valueRange = 0f..1f,
                         visibilityThreshold = 0.001f,
                         backdrop = backdrop,
-                        accentColor = contentColor,
+                        accentColor = animatedSliderColor,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -4197,7 +4213,7 @@ fun MiniPlayer(
                     ) {
                         Icon(
                             imageVector = when (audioRoute.type) {
-                                RouteType.BLUETOOTH -> Icons.Rounded.Bluetooth
+                                RouteType.BLUETOOTH -> Icons.Rounded.Earbuds
                                 RouteType.HEADPHONES -> Icons.Rounded.Headphones
                                 else -> Icons.Rounded.VolumeUp
                             },
@@ -4694,6 +4710,22 @@ fun rememberAudioRoute(): AudioRouteInfo {
 }
 
 private fun getAudioRoute(audioManager: android.media.AudioManager, context: Context): AudioRouteInfo {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        try {
+            val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+            for (device in devices) {
+                if (device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                    val name = device.productName?.toString() ?: "Wireless Earbuds"
+                    return AudioRouteInfo(name, RouteType.BLUETOOTH)
+                } else if (device.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    device.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
+                    return AudioRouteInfo("Earphones", RouteType.HEADPHONES)
+                }
+            }
+        } catch (e: Exception) {}
+    }
+
     val isBluetooth = audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
     val isWired = audioManager.isWiredHeadsetOn
     return when {

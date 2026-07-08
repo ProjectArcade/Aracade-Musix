@@ -367,14 +367,7 @@ fun HomeScreen(
                                             .graphicsLayer { rotationZ = rotation }
                                             .border(
                                                 2.dp,
-                                                androidx.compose.ui.graphics.Brush.sweepGradient(
-                                                    listOf(
-                                                        Color(0xFFFA243C),
-                                                        Color(0xFFFF5E3A),
-                                                        Color(0xFFFF2A68),
-                                                        Color(0xFFFA243C)
-                                                    )
-                                                ),
+                                                androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
                                                 androidx.compose.foundation.shape.CircleShape
                                             )
                                     )

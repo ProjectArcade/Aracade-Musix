@@ -1936,12 +1936,15 @@ fun OnlineCard(
         modifier = Modifier
             .width(140.dp)
             .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.Start
     ) {
         Box(
             modifier = Modifier
                 .size(140.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF141416))
+                .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(20.dp))
         ) {
             if (!thumbnail.isNullOrEmpty()) {
                 AsyncImage(
@@ -1955,22 +1958,24 @@ fun OnlineCard(
                     Icons.Rounded.Album,
                     contentDescription = null,
                     modifier = Modifier.size(64.dp).align(Alignment.Center),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    tint = Color.Gray
                 )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

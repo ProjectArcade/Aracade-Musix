@@ -108,10 +108,23 @@ object PlayerManager {
     val queue = MutableStateFlow<List<YTItem>>(emptyList())
     val currentQueueIndex = MutableStateFlow(0)
     val autoPlayEnabled = MutableStateFlow(true)
+    val repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val activePlaylistDetail = MutableStateFlow<YTItem?>(null)
     val activeArtistId = MutableStateFlow<String?>(null)
     val activeUserPlaylist = MutableStateFlow<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null)
     val currentPlayingPlaylist = MutableStateFlow<YTItem?>(null)
+
+    fun toggleRepeatMode() {
+        val next = when (repeatMode.value) {
+            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
+            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+            else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+        }
+        repeatMode.value = next
+        exoPlayer?.repeatMode = next
+        triggerNotificationUpdate()
+    }
+
     private var appContext: Context? = null
     private var mediaSession: android.media.session.MediaSession? = null
     private var lastThumbnailUrl: String? = null
@@ -408,6 +421,8 @@ object PlayerManager {
                     androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
                 )
                 .build()
+
+            exoPlayer?.repeatMode = repeatMode.value
 
             exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
@@ -4004,6 +4019,19 @@ fun MiniPlayer(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val currentRepeatMode by PlayerManager.repeatMode.collectAsState()
+                        Icon(
+                            imageVector = if (currentRepeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                            contentDescription = "Repeat Mode",
+                            tint = if (currentRepeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) Color(0xFFFA243C) else contentColor.copy(0.4f),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { PlayerManager.toggleRepeatMode() }
+                        )
+
                         var showAddToPlaylist by remember { mutableStateOf(false) }
                         val addSong = currentSong as? SongItem
                         Icon(
@@ -4629,13 +4657,28 @@ fun rememberAudioRoute(): AudioRouteInfo {
     DisposableEffect(context) {
         val receiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(context: Context, intent: android.content.Intent) {
-                routeInfo = getAudioRoute(audioManager, context)
+                val action = intent.action
+                if (action == android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED) {
+                    val device = intent.getParcelableExtra<android.bluetooth.BluetoothDevice>(android.bluetooth.BluetoothDevice.EXTRA_DEVICE)
+                    val name = device?.name ?: "Wireless Earbuds"
+                    routeInfo = AudioRouteInfo(name, RouteType.BLUETOOTH)
+                } else if (action == android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED) {
+                    routeInfo = getAudioRoute(audioManager, context)
+                } else if (action == android.content.Intent.ACTION_HEADSET_PLUG) {
+                    val state = intent.getIntExtra("state", 0)
+                    if (state == 1) {
+                        routeInfo = AudioRouteInfo("Earphones", RouteType.HEADPHONES)
+                    } else {
+                        routeInfo = getAudioRoute(audioManager, context)
+                    }
+                } else {
+                    routeInfo = getAudioRoute(audioManager, context)
+                }
             }
         }
         val filter = android.content.IntentFilter().apply {
             addAction(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY)
             addAction(android.content.Intent.ACTION_HEADSET_PLUG)
-            // Listen for ACL Bluetooth events to update when devices connect/disconnect
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
         }
@@ -4660,7 +4703,6 @@ private fun getAudioRoute(audioManager: android.media.AudioManager, context: Con
                 val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
                 if (btAdapter != null && btAdapter.isEnabled) {
                     val bonded = btAdapter.bondedDevices
-                    // Retrieve first bonded device name or use default
                     val device = bonded.firstOrNull()
                     if (device != null) {
                         name = device.name ?: "Wireless Earbuds"

@@ -2666,7 +2666,7 @@ fun MainScreen() {
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = androidx.compose.ui.graphics.RectangleShape
                     ) {
-                        Text("OK", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
+                        Text("OK", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA243C))
                     }
                 }
             }
@@ -2754,7 +2754,7 @@ fun MainScreen() {
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             shape = androidx.compose.ui.graphics.RectangleShape
                         ) {
-                            Text("Remind Later", fontSize = 15.sp, color = Color(0xFF007AFF))
+                            Text("Remind Later", fontSize = 15.sp, color = Color(0xFFFA243C))
                         }
                         Box(modifier = Modifier.width(0.5.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
                         androidx.compose.material3.TextButton(
@@ -2765,7 +2765,7 @@ fun MainScreen() {
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             shape = androidx.compose.ui.graphics.RectangleShape
                         ) {
-                            Text("Sign In Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
+                            Text("Sign In Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA243C))
                         }
                     }
                 }
@@ -2963,7 +2963,7 @@ fun MainScreen() {
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = androidx.compose.ui.graphics.RectangleShape
                     ) {
-                        Text("Update Now", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
+                        Text("Update Now", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA243C))
                     }
                 }
             }
@@ -3023,7 +3023,7 @@ fun MainScreen() {
                         Icon(
                             imageVector = Icons.Rounded.Info,
                             contentDescription = null,
-                            tint = Color(0xFF007AFF),
+                            tint = Color(0xFFFA243C),
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -3069,7 +3069,7 @@ fun MainScreen() {
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             shape = androidx.compose.ui.graphics.RectangleShape
                         ) {
-                            Text("Later", fontSize = 15.sp, color = Color(0xFF007AFF))
+                            Text("Later", fontSize = 15.sp, color = Color(0xFFFA243C))
                         }
                         Box(modifier = Modifier.width(0.5.dp).fillMaxHeight().background(Color.Gray.copy(alpha = 0.3f)))
                         androidx.compose.material3.TextButton(
@@ -3084,7 +3084,7 @@ fun MainScreen() {
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             shape = androidx.compose.ui.graphics.RectangleShape
                         ) {
-                            Text("Update Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF))
+                            Text("Update Now", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA243C))
                         }
                     }
                 }
@@ -4507,7 +4507,7 @@ fun parseMarkdown(text: String): androidx.compose.ui.text.AnnotatedString {
                             
                             pushStringAnnotation(tag = "URL", annotation = linkUrl)
                             pushStyle(androidx.compose.ui.text.SpanStyle(
-                                color = Color(0xFF007AFF),
+                                color = Color(0xFFFA243C),
                                 textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
                             ))
                             append(linkText)

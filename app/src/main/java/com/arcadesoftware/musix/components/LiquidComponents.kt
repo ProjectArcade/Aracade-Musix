@@ -817,7 +817,7 @@ fun LiquidSlider(
     visibilityThreshold: Float,
     backdrop: com.kyant.backdrop.Backdrop,
     modifier: Modifier = Modifier,
-    accentColor: Color = if (!androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF0088FF) else Color(0xFF0091FF),
+    accentColor: Color = Color(0xFFFA243C),
     onValueChangeFinished: (() -> Unit)? = null
 ) {
     val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()

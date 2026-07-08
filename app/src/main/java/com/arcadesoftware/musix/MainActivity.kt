@@ -124,7 +124,8 @@ object PlayerManager {
             else -> androidx.media3.common.Player.REPEAT_MODE_OFF
         }
         repeatMode.value = next
-        exoPlayer?.repeatMode = next
+        // Do NOT set exoPlayer.repeatMode — ExoPlayer must stay at REPEAT_MODE_OFF
+        // so STATE_ENDED always fires and our manual queue logic handles repeating.
         triggerNotificationUpdate()
     }
 
@@ -425,7 +426,9 @@ object PlayerManager {
                 )
                 .build()
 
-            exoPlayer?.repeatMode = repeatMode.value
+            // Always keep ExoPlayer at REPEAT_MODE_OFF so STATE_ENDED fires every time;
+            // repeat/loop behaviour is driven entirely by our own onPlaybackStateChanged logic.
+            exoPlayer?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
 
             exoPlayer?.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
@@ -3489,6 +3492,7 @@ fun MiniPlayer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
+                val isRingsDisabled by PlayerManager.disableAnimatedRings.collectAsState()
                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                 val rotationAngle by infiniteTransition.animateFloat(
                     initialValue = 0f,
@@ -3511,16 +3515,23 @@ fun MiniPlayer(
                         val centerOffset = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
                         val radius = (size.minDimension - strokeWidth) / 2f
 
-                        if (isPlaying) {
+                        if (isRingsDisabled) {
+                            drawCircle(
+                                color = contentColor.copy(alpha = 0.15f),
+                                radius = radius,
+                                center = centerOffset,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+                            )
+                        } else if (isPlaying) {
                             rotate(rotationAngle) {
                                 drawCircle(
                                     brush = androidx.compose.ui.graphics.Brush.sweepGradient(
                                         colors = listOf(
-                                            Color(0xFFFA243C), // appleRed
-                                            Color(0xFF8B5CF6), // Violet
-                                            Color(0xFF06B6D4), // Cyan
-                                            Color(0xFFEC4899), // Rose
-                                            Color(0xFFFA243C)  // appleRed (to complete smoothly)
+                                            Color(0xFFFA243C),
+                                            Color(0xFF8B5CF6),
+                                            Color(0xFF06B6D4),
+                                            Color(0xFFEC4899),
+                                            Color(0xFFFA243C)
                                         ),
                                         center = centerOffset
                                     ),
@@ -3530,12 +3541,41 @@ fun MiniPlayer(
                                 )
                             }
                         } else {
+                            // Dim track ring
                             drawCircle(
-                                color = contentColor.copy(alpha = 0.15f),
+                                color = contentColor.copy(alpha = 0.12f),
                                 radius = radius,
                                 center = centerOffset,
                                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
                             )
+                            // Gradient progress arc (static when paused)
+                            if (playbackProgress > 0f) {
+                                val gradientBrush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                                    colors = listOf(
+                                        Color(0xFFFA243C),
+                                        Color(0xFF8B5CF6),
+                                        Color(0xFF06B6D4),
+                                        Color(0xFFEC4899),
+                                        Color(0xFFFA243C)
+                                    ),
+                                    center = centerOffset
+                                )
+                                drawArc(
+                                    brush = gradientBrush,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * playbackProgress,
+                                    useCenter = false,
+                                    topLeft = androidx.compose.ui.geometry.Offset(
+                                        centerOffset.x - radius,
+                                        centerOffset.y - radius
+                                    ),
+                                    size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = strokeWidth,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    )
+                                )
+                            }
                         }
                     }
                     Box(

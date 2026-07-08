@@ -957,10 +957,11 @@ fun LiquidSlider(
                     )
                 }
 
+                val isRingsDisabled by com.arcadesoftware.musix.PlayerManager.disableAnimatedRings.collectAsState()
                 Box(
                     Modifier
                         .clip(CircleShape)
-                        .background(sliderTrackBrush)
+                        .background(if (isRingsDisabled) androidx.compose.ui.graphics.SolidColor(accentColor) else sliderTrackBrush)
                         .height(6f.dp)
                         .layout { measurable, constraints ->
                             val placeable = measurable.measure(constraints)

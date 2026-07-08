@@ -370,16 +370,18 @@ fun HomeScreen(
                                     ).value
                                 }
                                 Box(contentAlignment = Alignment.Center) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .graphicsLayer { rotationZ = rotation }
-                                            .border(
-                                                2.dp,
-                                                androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
-                                                androidx.compose.foundation.shape.CircleShape
-                                            )
-                                    )
+                                    if (!isRingsDisabled) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .graphicsLayer { rotationZ = rotation }
+                                                .border(
+                                                    2.dp,
+                                                    androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                                    androidx.compose.foundation.shape.CircleShape
+                                                )
+                                        )
+                                    }
                                     AsyncImage(
                                         model = currentUser?.photoUrl,
                                         contentDescription = "Profile",

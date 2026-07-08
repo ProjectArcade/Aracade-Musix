@@ -1845,16 +1845,18 @@ fun MainScreen() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Separated rotating border
-                                    Box(
-                                        modifier = Modifier
-                                            .size(54.dp)
-                                            .graphicsLayer { rotationZ = rotation }
-                                            .border(
-                                                2.dp,
-                                                androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
-                                                CircleShape
-                                            )
-                                    )
+                                    if (!isRingsDisabled) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .graphicsLayer { rotationZ = rotation }
+                                                .border(
+                                                    2.dp,
+                                                    androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                                    CircleShape
+                                                )
+                                        )
+                                    }
                                     // Static non-rotating profile image
                                     AsyncImage(
                                         model = currentUser?.photoUrl,
@@ -2377,17 +2379,14 @@ fun MainScreen() {
                                     Text("Disable Glowing Ring Animations", fontWeight = FontWeight.Medium, fontSize = 15.sp)
                                     Text("Turn off rotating color rings on profile & album art to reduce CPU/battery usage", fontSize = 12.sp, color = Color.Gray)
                                 }
-                                Switch(
-                                    checked = disableAnimatedRings,
-                                    onCheckedChange = { isChecked ->
+                                com.arcadesoftware.musix.components.LiquidToggle(
+                                    selected = { disableAnimatedRings },
+                                    onSelect = { isChecked ->
                                         disableAnimatedRings = isChecked
                                         syncSharedPrefs.edit().putBoolean("disable_animated_rings", isChecked).apply()
                                         PlayerManager.disableAnimatedRings.value = isChecked
                                     },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = Color(0xFFFA243C)
-                                    )
+                                    backdrop = mainBackdrop
                                 )
                             }
 
@@ -3760,15 +3759,17 @@ fun MiniPlayer(
                         )
 
                         // Static gradient border box with rotating brush on top
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .border(
-                                    3.dp,
-                                    artBorderBrush,
-                                    RoundedCornerShape(24.dp)
-                                )
-                        )
+                        if (!isRingsDisabled) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .border(
+                                        3.dp,
+                                        artBorderBrush,
+                                        RoundedCornerShape(24.dp)
+                                    )
+                            )
+                        }
 
                         // Lyrics overlay slides on top
                         androidx.compose.animation.AnimatedVisibility(

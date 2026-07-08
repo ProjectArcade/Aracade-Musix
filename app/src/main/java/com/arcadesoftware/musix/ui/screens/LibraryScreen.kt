@@ -933,23 +933,25 @@ fun ArtistLibraryDetailScreen(
                 }
 
                 Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(142.dp)
-                            .graphicsLayer { rotationZ = rotation }
-                            .border(
-                                2.5.dp,
-                                androidx.compose.ui.graphics.Brush.sweepGradient(
-                                    listOf(
-                                        Color(0xFFFA243C),
-                                        Color(0xFFFF5E3A),
-                                        Color(0xFFFF2A68),
-                                        Color(0xFFFA243C)
-                                    )
-                                ),
-                                androidx.compose.foundation.shape.CircleShape
-                            )
-                    )
+                    if (!isRingsDisabled) {
+                        Box(
+                            modifier = Modifier
+                                .size(142.dp)
+                                .graphicsLayer { rotationZ = rotation }
+                                .border(
+                                    2.5.dp,
+                                    androidx.compose.ui.graphics.Brush.sweepGradient(
+                                        listOf(
+                                            Color(0xFFFA243C),
+                                            Color(0xFFFF5E3A),
+                                            Color(0xFFFF2A68),
+                                            Color(0xFFFA243C)
+                                        )
+                                    ),
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .size(134.dp)

@@ -266,7 +266,7 @@ object WhatsNewChecker {
     fun shouldShowWhatsNew(context: Context): Boolean {
         // FOR TESTING: Returns true unconditionally so you can preview and test.
         // Set to false when moving to production/final.
-        val testingMode = true
+        val testingMode = false
         if (testingMode) return true
 
         val sharedPrefs = context.getSharedPreferences("whats_new_prefs", Context.MODE_PRIVATE)

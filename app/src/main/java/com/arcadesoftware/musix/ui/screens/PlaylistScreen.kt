@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -148,15 +149,16 @@ fun PlaylistScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
                 ) {
                     Text(
-                        text = "Playlist",
+                        text = "Playlists",
                         style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 34.sp
+                            fontWeight = FontWeight.Black,
+                            fontSize = 38.sp,
+                            letterSpacing = (-1).sp
                         ),
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = Color.White
                     )
                 }
             }
@@ -168,26 +170,89 @@ fun PlaylistScreen(
                         .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PlaylistCard(
-                        title = "Liked Songs",
-                        subtitle = "${likedSongIds.size} songs",
-                        thumbnail = null,
-                        defaultIcon = Icons.Rounded.Favorite,
-                        iconContainerColor = Color(0xFFFEE2E2),
-                        iconColor = Color(0xFFEF4444),
-                        onClick = { activeBuiltInPlaylist = "liked" }
-                    )
-                    PlaylistCard(
-                        title = "Downloads",
-                        subtitle = "${downloadedSongs.size} songs",
-                        thumbnail = null,
-                        defaultIcon = Icons.Rounded.DownloadDone,
-                        iconContainerColor = Color(0xFFDCFCE7),
-                        iconColor = Color(0xFF22C55E),
-                        onClick = { activeBuiltInPlaylist = "downloads" }
-                    )
+                    // Custom Liked Songs Card
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    listOf(Color(0xFFFA243C).copy(alpha = 0.2f), Color(0xFFFA243C).copy(alpha = 0.05f))
+                                )
+                            )
+                            .border(1.dp, Color(0x33FA243C), RoundedCornerShape(24.dp))
+                            .clickable { activeBuiltInPlaylist = "liked" }
+                            .padding(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Icon(
+                                Icons.Rounded.Favorite,
+                                contentDescription = null,
+                                tint = Color(0xFFFA243C),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Column {
+                                Text(
+                                    "Liked Songs",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${likedSongIds.size} songs",
+                                    fontSize = 13.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+
+                    // Custom Downloads Card
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    listOf(Color(0xFF22C55E).copy(alpha = 0.2f), Color(0xFF22C55E).copy(alpha = 0.05f))
+                                )
+                            )
+                            .border(1.dp, Color(0x3322C55E), RoundedCornerShape(24.dp))
+                            .clickable { activeBuiltInPlaylist = "downloads" }
+                            .padding(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Icon(
+                                Icons.Rounded.DownloadDone,
+                                contentDescription = null,
+                                tint = Color(0xFF22C55E),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Column {
+                                Text(
+                                    "Downloads",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${downloadedSongs.size} songs",
+                                    fontSize = 13.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
             }
 
             if (downloadedPlaylists.isNotEmpty()) {
@@ -299,17 +364,23 @@ fun PlaylistScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    LibrarySectionHeader(title = "My Playlists")
-                    TextButton(
-                        onClick = { showNewPlaylistDialog = true }
+                    Text(
+                        "My Playlists",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Color.White
+                    )
+                    IconButton(
+                        onClick = { showNewPlaylistDialog = true },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFA243C))
                     ) {
-                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("New", fontWeight = FontWeight.SemiBold)
+                        Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -1132,20 +1203,22 @@ private fun PlaylistCard(
     onDeleteClick: (() -> Unit)? = null,
     isDownloaded: Boolean = false,
     defaultIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.QueueMusic,
-    iconContainerColor: Color = MaterialTheme.colorScheme.primary.copy(0.12f),
-    iconColor: Color = MaterialTheme.colorScheme.primary
+    iconContainerColor: Color = Color(0xFF1C1C1E),
+    iconColor: Color = Color(0xFFFA243C)
 ) {
     Column(
         modifier = Modifier
-            .width(130.dp)
-            .clickable(onClick = onClick),
+            .width(140.dp)
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.Start
     ) {
         Box(
             modifier = Modifier
-                .size(130.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .size(140.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF141416))
+                .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(20.dp))
         ) {
             if (thumbnail != null) {
                 AsyncImage(
@@ -1158,14 +1231,18 @@ private fun PlaylistCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(iconContainerColor),
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(iconContainerColor, iconContainerColor.copy(alpha = 0.5f))
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         defaultIcon,
                         contentDescription = null,
                         tint = iconColor,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(52.dp)
                     )
                 }
             }
@@ -1174,7 +1251,10 @@ private fun PlaylistCard(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
-                        .size(20.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xCC000000))
+                        .padding(2.dp)
                         .background(Color(0xFF22C55E), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1182,7 +1262,7 @@ private fun PlaylistCard(
                         Icons.Rounded.DownloadDone,
                         contentDescription = "Downloaded",
                         tint = Color.White,
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -1191,34 +1271,36 @@ private fun PlaylistCard(
                     onClick = onDeleteClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                        .padding(6.dp)
                         .size(28.dp)
-                        .background(Color.Black.copy(0.5f), CircleShape)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(0.6f))
                 ) {
                     Icon(
                         Icons.Rounded.Delete,
                         contentDescription = "Delete",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            text = title,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface
+            overflow = TextOverflow.Ellipsis
         )
         Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

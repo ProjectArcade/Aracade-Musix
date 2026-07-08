@@ -1507,6 +1507,19 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+
+                        val context = LocalContext.current
+                        var showWhatsNew by remember {
+                            mutableStateOf(com.arcadesoftware.musix.components.WhatsNewChecker.shouldShowWhatsNew(context))
+                        }
+                        if (showWhatsNew) {
+                            com.arcadesoftware.musix.components.WhatsNewDialog(
+                                onDismiss = {
+                                    com.arcadesoftware.musix.components.WhatsNewChecker.markWhatsNewAsSeen(context)
+                                    showWhatsNew = false
+                                }
+                            )
+                        }
                     }
                 }
             }

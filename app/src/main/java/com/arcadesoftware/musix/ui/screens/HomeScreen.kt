@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -366,7 +367,14 @@ fun HomeScreen(
                                             .graphicsLayer { rotationZ = rotation }
                                             .border(
                                                 2.dp,
-                                                androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)),
+                                                androidx.compose.ui.graphics.Brush.sweepGradient(
+                                                    listOf(
+                                                        Color(0xFFFA243C),
+                                                        Color(0xFFFF5E3A),
+                                                        Color(0xFFFF2A68),
+                                                        Color(0xFFFA243C)
+                                                    )
+                                                ),
                                                 androidx.compose.foundation.shape.CircleShape
                                             )
                                     )
@@ -863,21 +871,29 @@ fun SquareCard(item: YTItem) {
         else -> null
     }
 
+    val isArtist = item is ArtistItem
+    val shape = if (isArtist) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(20.dp)
+
     Column(
         modifier = Modifier
             .width(160.dp)
             .clickable {
                 if (item is PlaylistItem || item is AlbumItem) {
                     PlayerManager.activePlaylistDetail.value = item
+                } else if (item is ArtistItem) {
+                    // Navigate to artist detail or play artist
                 } else {
                     PlayerManager.play(item)
                 }
             }
+            .padding(vertical = 4.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(160.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(shape)
+                .background(Color(0xFF141416))
+                .border(1.dp, Color(0x1AFFFFFF), shape)
         ) {
             AsyncImage(
                 model = thumbnail ?: "",
@@ -885,36 +901,40 @@ fun SquareCard(item: YTItem) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            val isPlaylist = item is PlaylistItem
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(8.dp)
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Black.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isPlaylist) Icons.AutoMirrored.Rounded.PlaylistPlay else Icons.Rounded.MusicNote,
-                    contentDescription = if (isPlaylist) "Playlist" else "Music",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
+            if (!isArtist) {
+                val isPlaylist = item is PlaylistItem
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp)
+                        .size(32.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color(0xFFFA243C)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPlaylist) Icons.AutoMirrored.Rounded.PlaylistPlay else Icons.Rounded.MusicNote,
+                        contentDescription = if (isPlaylist) "Playlist" else "Music",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )

@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -917,41 +918,69 @@ fun ArtistLibraryDetailScreen(
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(130.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    if (!artist.thumbnailUrl.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = artist.thumbnailUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            Icons.Rounded.Person,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(64.dp)
-                                .align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f, targetValue = 360f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(4000, easing = androidx.compose.animation.core.LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    )
+                )
+
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(142.dp)
+                            .graphicsLayer { rotationZ = rotation }
+                            .border(
+                                2.5.dp,
+                                androidx.compose.ui.graphics.Brush.sweepGradient(
+                                    listOf(
+                                        Color(0xFFFA243C),
+                                        Color(0xFFFF5E3A),
+                                        Color(0xFFFF2A68),
+                                        Color(0xFFFA243C)
+                                    )
+                                ),
+                                androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(134.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF141416))
+                    ) {
+                        if (!artist.thumbnailUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = artist.thumbnailUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                Icons.Rounded.Person,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .align(Alignment.Center),
+                                tint = Color.Gray
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = artist.name,
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     text = if (artist.songs.isEmpty()) "Online YT Music Profile" else "${artist.songs.size} library songs",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = Color.Gray
                 )
             }
 

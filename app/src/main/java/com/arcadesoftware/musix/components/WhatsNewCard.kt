@@ -64,7 +64,7 @@ fun WhatsNewDialog(
         WhatsNewFeature(
             title = "Redesigned App Layout",
             description = "Experience a sleek, high-end Apple Music style dark interface with rounded glow borders and custom visual cards.",
-            imageRes = R.drawable.whatsnew_1
+            imageRes = R.drawable.whatsnew_4
         ),
         WhatsNewFeature(
             title = "Bug Fixes & Optimization",

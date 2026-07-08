@@ -7,6 +7,7 @@ import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.MutatorMutex
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -932,10 +933,33 @@ fun LiquidSlider(
                         .fillMaxWidth()
                 )
 
+                val sliderTrackTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                val sliderTrackOffset by sliderTrackTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    )
+                )
+                val sliderTrackBrush = remember(sliderTrackOffset) {
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFFA243C),
+                            Color(0xFFFF5E3A),
+                            Color(0xFFFA243C),
+                            Color(0xFFFF2A68)
+                        ),
+                        start = androidx.compose.ui.geometry.Offset(-500f + (1000f * sliderTrackOffset), 0f),
+                        end = androidx.compose.ui.geometry.Offset(500f + (1000f * sliderTrackOffset), 0f),
+                        tileMode = androidx.compose.ui.graphics.TileMode.Repeated
+                    )
+                }
+
                 Box(
                     Modifier
                         .clip(CircleShape)
-                        .background(accentColor)
+                        .background(sliderTrackBrush)
                         .height(6f.dp)
                         .layout { measurable, constraints ->
                             val placeable = measurable.measure(constraints)

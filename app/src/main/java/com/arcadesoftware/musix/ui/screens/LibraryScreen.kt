@@ -52,6 +52,7 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import io.github.robinpcrd.cupertino.CupertinoActivityIndicator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -860,8 +861,37 @@ fun ArtistLibraryDetailScreen(
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val appleRed = Color(0xFFFA243C)
+    val context = LocalContext.current
+    var localSongsState by remember(artist) { mutableStateOf(artist.songs) }
+
+    LaunchedEffect(artist) {
+        if (artist.songs.isEmpty()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
+                    val downloads = db.musicDao().getDownloadedSongs().first()
+                    val history = db.musicDao().getPlayHistory().first()
+
+                    val allLocalSongs = mutableListOf<SongItem>()
+                    allLocalSongs.addAll(downloads.map { it.toSongItem() })
+                    allLocalSongs.addAll(history.map { it.toSongItem() })
+
+                    val filtered = allLocalSongs.distinctBy { it.id }.filter { song ->
+                        song.artists?.any { a -> a.name.equals(artist.name, ignoreCase = true) } == true
+                    }
+                    withContext(Dispatchers.Main) {
+                        localSongsState = filtered
+                    }
+                } catch (e: Exception) {
+                }
+            }
+        }
+    }
+
+    val displaySongs = localSongsState
+
     // Automatically switch to Explore Online tab (1) if the library songs list is empty and artist has an online profile ID
-    var selectedTab by remember(artist) { mutableStateOf(if (artist.songs.isEmpty() && artist.id != null) 1 else 0) }
+    var selectedTab by remember(artist, displaySongs) { mutableStateOf(if (displaySongs.isEmpty() && artist.id != null) 1 else 0) }
     val hasOnlineProfile = artist.id != null
 
     val libListState = rememberLazyListState()
@@ -873,6 +903,11 @@ fun ArtistLibraryDetailScreen(
         }
     }
 
+    var loadedArtistPage by remember(artist) { mutableStateOf<com.music.innertube.pages.ArtistPage?>(null) }
+    val displayedThumbnail = remember(artist, loadedArtistPage) {
+        artist.thumbnailUrl.takeIf { !it.isNullOrEmpty() } ?: loadedArtistPage?.artist?.thumbnail
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -880,9 +915,9 @@ fun ArtistLibraryDetailScreen(
     ) {
         // Blurred ambient background
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
-            if (!artist.thumbnailUrl.isNullOrEmpty()) {
+            if (!displayedThumbnail.isNullOrEmpty()) {
                 AsyncImage(
-                    model = artist.thumbnailUrl,
+                    model = displayedThumbnail,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -958,9 +993,9 @@ fun ArtistLibraryDetailScreen(
                             .clip(CircleShape)
                             .background(Color(0xFF141416))
                     ) {
-                        if (!artist.thumbnailUrl.isNullOrEmpty()) {
+                        if (!displayedThumbnail.isNullOrEmpty()) {
                             AsyncImage(
-                                model = artist.thumbnailUrl,
+                                model = displayedThumbnail,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
@@ -985,14 +1020,14 @@ fun ArtistLibraryDetailScreen(
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = if (artist.songs.isEmpty()) "Online YT Music Profile" else "${artist.songs.size} library songs",
+                    text = if (displaySongs.isEmpty()) "Online YT Music Profile" else "${displaySongs.size} library songs",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
             }
 
             // Tabs for Library vs Online (if available)
-            if (hasOnlineProfile && artist.songs.isNotEmpty()) {
+            if (hasOnlineProfile && displaySongs.isNotEmpty()) {
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color.Transparent,
@@ -1021,7 +1056,7 @@ fun ArtistLibraryDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Tab contents
-            if (selectedTab == 0 && artist.songs.isNotEmpty()) {
+            if (selectedTab == 0 && displaySongs.isNotEmpty()) {
                 // In Library Screen
                 LazyColumn(
                     state = libListState,
@@ -1044,14 +1079,14 @@ fun ArtistLibraryDetailScreen(
                                         id = "artist_lib_${artist.name}",
                                         title = artist.name,
                                         author = Artist(artist.name, null),
-                                        songCountText = "${artist.songs.size} songs",
+                                        songCountText = "${displaySongs.size} songs",
                                         thumbnail = artist.thumbnailUrl,
                                         playEndpoint = null,
                                         shuffleEndpoint = null,
                                         radioEndpoint = null
                                     )
                                     PlayerManager.currentPlayingPlaylist.value = playlistItem
-                                    PlayerManager.playQueue(artist.songs, 0)
+                                    PlayerManager.playQueue(displaySongs, 0)
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1085,14 +1120,14 @@ fun ArtistLibraryDetailScreen(
                                         id = "artist_lib_${artist.name}",
                                         title = artist.name,
                                         author = Artist(artist.name, null),
-                                        songCountText = "${artist.songs.size} songs",
+                                        songCountText = "${displaySongs.size} songs",
                                         thumbnail = artist.thumbnailUrl,
                                         playEndpoint = null,
                                         shuffleEndpoint = null,
                                         radioEndpoint = null
                                     )
                                     PlayerManager.currentPlayingPlaylist.value = playlistItem
-                                    PlayerManager.playQueue(artist.songs.shuffled(), 0)
+                                    PlayerManager.playQueue(displaySongs.shuffled(), 0)
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1120,7 +1155,7 @@ fun ArtistLibraryDetailScreen(
                         }
                     }
 
-                    itemsIndexed(artist.songs) { index, songItem ->
+                    itemsIndexed(displaySongs) { index, songItem ->
                         val isCurrentlyPlaying = PlayerManager.currentSong.collectAsState().value?.id == songItem.id
                         LibrarySongRow(
                             songItem = songItem,
@@ -1133,14 +1168,14 @@ fun ArtistLibraryDetailScreen(
                                     id = "artist_lib_${artist.name}",
                                     title = artist.name,
                                     author = Artist(artist.name, null),
-                                    songCountText = "${artist.songs.size} songs",
+                                    songCountText = "${displaySongs.size} songs",
                                     thumbnail = artist.thumbnailUrl,
                                     playEndpoint = null,
                                     shuffleEndpoint = null,
                                     radioEndpoint = null
                                 )
                                 PlayerManager.currentPlayingPlaylist.value = playlistItem
-                                PlayerManager.playQueue(artist.songs, index)
+                                PlayerManager.playQueue(displaySongs, index)
                             }
                         )
                     }
@@ -1152,7 +1187,8 @@ fun ArtistLibraryDetailScreen(
                     appleRed = appleRed,
                     backdrop = backdrop,
                     listState = onlineListState,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onArtistPageLoaded = { loadedArtistPage = it }
                 )
             }
         }
@@ -1319,7 +1355,8 @@ fun ArtistOnlineDetailView(
     appleRed: Color,
     backdrop: LayerBackdrop,
     listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onArtistPageLoaded: (ArtistPage) -> Unit = {}
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var artistPage by remember { mutableStateOf<ArtistPage?>(null) }
@@ -1334,6 +1371,7 @@ fun ArtistOnlineDetailView(
             val result = withContext(Dispatchers.IO) { YouTube.artist(artistId) }
             result.onSuccess { page ->
                 artistPage = page
+                onArtistPageLoaded(page)
             }.onFailure { e ->
                 onlineError = e.message ?: "Failed to load online profile."
             }

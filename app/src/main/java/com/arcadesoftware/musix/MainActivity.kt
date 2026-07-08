@@ -113,13 +113,14 @@ object PlayerManager {
     val disableAnimatedRings = MutableStateFlow(false)
     val activePlaylistDetail = MutableStateFlow<YTItem?>(null)
     val activeArtistId = MutableStateFlow<String?>(null)
+    val activeArtist = MutableStateFlow<com.arcadesoftware.musix.ui.screens.LibraryArtist?>(null)
     val activeUserPlaylist = MutableStateFlow<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null)
     val currentPlayingPlaylist = MutableStateFlow<YTItem?>(null)
 
     fun toggleRepeatMode() {
         val next = when (repeatMode.value) {
-            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ALL
-            androidx.media3.common.Player.REPEAT_MODE_ALL -> androidx.media3.common.Player.REPEAT_MODE_ONE
+            androidx.media3.common.Player.REPEAT_MODE_OFF -> androidx.media3.common.Player.REPEAT_MODE_ONE
+            androidx.media3.common.Player.REPEAT_MODE_ONE -> androidx.media3.common.Player.REPEAT_MODE_ALL
             else -> androidx.media3.common.Player.REPEAT_MODE_OFF
         }
         repeatMode.value = next
@@ -464,18 +465,22 @@ object PlayerManager {
                             val currentIndex = currentQueueIndex.value
                             val currentQueue = queue.value
                             if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ONE) {
-                                // Loop current song once
-                                playInternal(currentQueue[currentIndex])
-                                // Disable repeat once
+                                // Repeat current song once, then revert to OFF
                                 repeatMode.value = androidx.media3.common.Player.REPEAT_MODE_OFF
                                 exoPlayer?.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+                                playInternal(currentQueue[currentIndex])
+                            } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ALL && currentQueue.isNotEmpty()) {
+                                // Loop forever: if not at end of queue advance, else wrap around
+                                if (currentIndex < currentQueue.size - 1) {
+                                    currentQueueIndex.value = currentIndex + 1
+                                    playInternal(currentQueue[currentIndex + 1])
+                                } else {
+                                    currentQueueIndex.value = 0
+                                    playInternal(currentQueue[0])
+                                }
                             } else if (currentIndex < currentQueue.size - 1) {
                                 currentQueueIndex.value = currentIndex + 1
                                 playInternal(currentQueue[currentIndex + 1])
-                            } else if (currentMode == androidx.media3.common.Player.REPEAT_MODE_ALL && currentQueue.isNotEmpty()) {
-                                // Loop forever (repeat entire queue)
-                                currentQueueIndex.value = 0
-                                playInternal(currentQueue[0])
                             } else if (autoPlayEnabled.value) {
                                 currentSong.value?.let { song ->
                                     scope.launch {
@@ -2598,33 +2603,18 @@ fun MainScreen() {
         }
 
         // Artist details page overlay
-        val activeArtistId by PlayerManager.activeArtistId.collectAsState()
+        val activeArtist by PlayerManager.activeArtist.collectAsState()
         androidx.compose.animation.AnimatedVisibility(
-            visible = activeArtistId != null,
+            visible = activeArtist != null,
             enter = androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }),
             exit = androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }),
             modifier = Modifier.fillMaxSize()
         ) {
-            activeArtistId?.let { artistId ->
-                val dummyArtist = remember(artistId) {
-                    val currentSongItem = PlayerManager.currentSong.value
-                    val artistName = when (currentSongItem) {
-                        is SongItem -> currentSongItem.artists?.firstOrNull()?.name ?: "Artist"
-                        is AlbumItem -> currentSongItem.artists?.firstOrNull()?.name ?: "Artist"
-                        is ArtistItem -> currentSongItem.title
-                        else -> "Artist"
-                    }
-                    com.arcadesoftware.musix.ui.screens.LibraryArtist(
-                        name = artistName,
-                        thumbnailUrl = null,
-                        songs = emptyList(),
-                        id = artistId
-                    )
-                }
+            activeArtist?.let { artist ->
                 com.arcadesoftware.musix.ui.screens.ArtistLibraryDetailScreen(
-                    artist = dummyArtist,
+                    artist = artist,
                     backdrop = playlistBackdrop,
-                    onBack = { PlayerManager.activeArtistId.value = null },
+                    onBack = { PlayerManager.activeArtist.value = null },
                     onLikedArtistsChanged = {}
                 )
             }
@@ -3959,10 +3949,19 @@ fun MiniPlayer(
                                         is ArtistItem -> currentSong.id
                                         else -> null
                                     }
-                                    if (artistId != null) {
-                                        PlayerManager.activeArtistId.value = artistId
-                                        expanded = false
-                                    }
+                                    val artistName = when (currentSong) {
+                                        is SongItem -> currentSong.artists?.firstOrNull()?.name
+                                        is AlbumItem -> currentSong.artists?.firstOrNull()?.name
+                                        is ArtistItem -> currentSong.title
+                                        else -> null
+                                    } ?: subtitle
+                                    PlayerManager.activeArtist.value = com.arcadesoftware.musix.ui.screens.LibraryArtist(
+                                        id = artistId,
+                                        name = artistName,
+                                        thumbnailUrl = currentSong?.thumbnail,
+                                        songs = emptyList() // detail screen loads local songs on open
+                                    )
+                                    expanded = false
                                 }
                             )
                         }

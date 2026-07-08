@@ -4675,28 +4675,63 @@ enum class RouteType {
 @Composable
 fun rememberAudioRoute(): AudioRouteInfo {
     val context = LocalContext.current
-    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
-    var routeInfo by remember { mutableStateOf(getAudioRoute(audioManager, context)) }
+    var hasBtConnectPermission by remember {
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.BLUETOOTH_CONNECT
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
 
-    DisposableEffect(context) {
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasBtConnectPermission = isGranted
+    }
+
+    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
+    var routeInfo by remember(hasBtConnectPermission) { mutableStateOf(getAudioRoute(audioManager, context, hasBtConnectPermission)) }
+
+    LaunchedEffect(routeInfo.type, hasBtConnectPermission) {
+        if (routeInfo.type == RouteType.BLUETOOTH && !hasBtConnectPermission) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                launcher.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        }
+    }
+
+    DisposableEffect(context, hasBtConnectPermission) {
         val receiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(context: Context, intent: android.content.Intent) {
                 val action = intent.action
                 if (action == android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED) {
                     val device = intent.getParcelableExtra<android.bluetooth.BluetoothDevice>(android.bluetooth.BluetoothDevice.EXTRA_DEVICE)
-                    val name = device?.name ?: "Wireless Earbuds"
+                    val name = if (hasBtConnectPermission) {
+                        try {
+                            device?.name ?: "Earbuds"
+                        } catch (e: SecurityException) {
+                            "Earbuds"
+                        }
+                    } else {
+                        "Earbuds"
+                    }
                     routeInfo = AudioRouteInfo(name, RouteType.BLUETOOTH)
                 } else if (action == android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED) {
-                    routeInfo = getAudioRoute(audioManager, context)
+                    routeInfo = getAudioRoute(audioManager, context, hasBtConnectPermission)
                 } else if (action == android.content.Intent.ACTION_HEADSET_PLUG) {
                     val state = intent.getIntExtra("state", 0)
                     if (state == 1) {
                         routeInfo = AudioRouteInfo("Earphones", RouteType.HEADPHONES)
                     } else {
-                        routeInfo = getAudioRoute(audioManager, context)
+                        routeInfo = getAudioRoute(audioManager, context, hasBtConnectPermission)
                     }
                 } else {
-                    routeInfo = getAudioRoute(audioManager, context)
+                    routeInfo = getAudioRoute(audioManager, context, hasBtConnectPermission)
                 }
             }
         }
@@ -4717,14 +4752,18 @@ fun rememberAudioRoute(): AudioRouteInfo {
     return routeInfo
 }
 
-private fun getAudioRoute(audioManager: android.media.AudioManager, context: Context): AudioRouteInfo {
+private fun getAudioRoute(audioManager: android.media.AudioManager, context: Context, hasBtConnectPermission: Boolean): AudioRouteInfo {
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
         try {
             val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
             for (device in devices) {
                 if (device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
                     device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
-                    val name = device.productName?.toString() ?: "Wireless Earbuds"
+                    val name = if (hasBtConnectPermission) {
+                        device.productName?.toString() ?: "Earbuds"
+                    } else {
+                        "Earbuds"
+                    }
                     return AudioRouteInfo(name, RouteType.BLUETOOTH)
                 } else if (device.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET ||
                     device.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
@@ -4739,16 +4778,18 @@ private fun getAudioRoute(audioManager: android.media.AudioManager, context: Con
     return when {
         isBluetooth -> {
             var name = "Earbuds"
-            try {
-                val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
-                if (btAdapter != null && btAdapter.isEnabled) {
-                    val bonded = btAdapter.bondedDevices
-                    val device = bonded.firstOrNull()
-                    if (device != null) {
-                        name = device.name ?: "Wireless Earbuds"
+            if (hasBtConnectPermission) {
+                try {
+                    val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                    if (btAdapter != null && btAdapter.isEnabled) {
+                        val bonded = btAdapter.bondedDevices
+                        val device = bonded.firstOrNull()
+                        if (device != null) {
+                            name = device.name ?: "Earbuds"
+                        }
                     }
-                }
-            } catch (e: Exception) {}
+                } catch (e: Exception) {}
+            }
             AudioRouteInfo(name, RouteType.BLUETOOTH)
         }
         isWired -> AudioRouteInfo("Earphones", RouteType.HEADPHONES)

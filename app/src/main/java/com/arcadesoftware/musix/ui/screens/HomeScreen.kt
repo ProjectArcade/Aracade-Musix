@@ -356,14 +356,19 @@ fun HomeScreen(
 
                         IconButton(onClick = onOpenDrawer) {
                             if (currentUser != null && currentUser?.photoUrl != null) {
+                                val isRingsDisabled by com.arcadesoftware.musix.PlayerManager.disableAnimatedRings.collectAsState()
                                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-                                val rotation by infiniteTransition.animateFloat(
-                                    initialValue = 0f, targetValue = 360f,
-                                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                                        animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
-                                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                                    )
-                                )
+                                val rotation = if (isRingsDisabled) {
+                                    0f
+                                } else {
+                                    infiniteTransition.animateFloat(
+                                        initialValue = 0f, targetValue = 360f,
+                                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                            animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                                        )
+                                    ).value
+                                }
                                 Box(contentAlignment = Alignment.Center) {
                                     Box(
                                         modifier = Modifier

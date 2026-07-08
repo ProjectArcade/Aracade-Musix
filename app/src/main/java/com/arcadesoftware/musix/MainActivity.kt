@@ -110,6 +110,7 @@ object PlayerManager {
     val currentQueueIndex = MutableStateFlow(0)
     val autoPlayEnabled = MutableStateFlow(true)
     val repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
+    val disableAnimatedRings = MutableStateFlow(false)
     val activePlaylistDetail = MutableStateFlow<YTItem?>(null)
     val activeArtistId = MutableStateFlow<String?>(null)
     val activeUserPlaylist = MutableStateFlow<com.arcadesoftware.musix.db.entities.PlaylistEntity?>(null)
@@ -1441,6 +1442,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val syncPrefs = getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
+        PlayerManager.disableAnimatedRings.value = syncPrefs.getBoolean("disable_animated_rings", false)
+
         // Enable Firestore offline persistence so any writes queued while
         // offline (or during process kill) are delivered on the next launch.
         try {
@@ -1822,14 +1826,19 @@ fun MainScreen() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Glowing Sweep Gradient border on profile image (ONLY border rotates)
+                                val isRingsDisabled by PlayerManager.disableAnimatedRings.collectAsState()
                                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-                                val rotation by infiniteTransition.animateFloat(
-                                    initialValue = 0f, targetValue = 360f,
-                                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                                        animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
-                                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                                    )
-                                )
+                                val rotation = if (isRingsDisabled) {
+                                     0f
+                                 } else {
+                                     infiniteTransition.animateFloat(
+                                         initialValue = 0f, targetValue = 360f,
+                                         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                             animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                                             repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                                         )
+                                     ).value
+                                 }
                                 Box(
                                     modifier = Modifier
                                         .size(54.dp),
@@ -2353,6 +2362,35 @@ fun MainScreen() {
                                 Icon(Icons.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                             }
                             
+                            androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
+
+                            // Disable animated rings toggle
+                            var disableAnimatedRings by remember {
+                                mutableStateOf(syncSharedPrefs.getBoolean("disable_animated_rings", false))
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Disable Glowing Ring Animations", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                                    Text("Turn off rotating color rings on profile & album art to reduce CPU/battery usage", fontSize = 12.sp, color = Color.Gray)
+                                }
+                                Switch(
+                                    checked = disableAnimatedRings,
+                                    onCheckedChange = { isChecked ->
+                                        disableAnimatedRings = isChecked
+                                        syncSharedPrefs.edit().putBoolean("disable_animated_rings", isChecked).apply()
+                                        PlayerManager.disableAnimatedRings.value = isChecked
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFFFA243C)
+                                    )
+                                )
+                            }
+
                             androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
 
                             // Collapsible Advanced Settings (Cache controller)
@@ -3669,14 +3707,19 @@ fun MiniPlayer(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Album art / Lyrics Box
+                    val isRingsDisabled by PlayerManager.disableAnimatedRings.collectAsState()
                     val artInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-                    val artRotation by artInfiniteTransition.animateFloat(
-                        initialValue = 0f, targetValue = 360f,
-                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                            animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
-                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                        )
-                    )
+                    val artRotation = if (isRingsDisabled) {
+                        0f
+                    } else {
+                        artInfiniteTransition.animateFloat(
+                            initialValue = 0f, targetValue = 360f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                            )
+                        ).value
+                    }
 
                     val artBorderBrush = remember(artRotation) {
                         object : androidx.compose.ui.graphics.ShaderBrush() {
@@ -3881,7 +3924,7 @@ fun MiniPlayer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(38.dp))
 
                     // Title + like button row
                     Row(

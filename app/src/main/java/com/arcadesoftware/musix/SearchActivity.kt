@@ -103,21 +103,25 @@ fun SearchScreen(onBack: () -> Unit) {
 
     LaunchedEffect(query) {
         if (query.isNotBlank()) {
+            kotlinx.coroutines.delay(1000) // Debounce for 1 second
+            
+            // Auto search after pause
+            isLoading = true
             scope.launch(Dispatchers.IO) {
-                YouTube.searchSuggestions(query).onSuccess { suggestResult ->
-                    withContext(Dispatchers.Main) {
-                        suggestions = suggestResult.queries
+                val searchResult = YouTube.search(query, com.music.innertube.YouTube.SearchFilter.FILTER_SONG)
+                withContext(Dispatchers.Main) {
+                    searchResult.onSuccess { result ->
+                        results = result.items.filterIsInstance<SongItem>()
+                    }.onFailure {
+                        results = emptyList()
                     }
-                }.onFailure {
-                    withContext(Dispatchers.Main) {
-                        suggestions = emptyList()
-                    }
+                    isLoading = false
                 }
             }
         } else {
             suggestions = emptyList()
+            results = emptyList()
         }
-        results = emptyList()
     }
 
     // Fetch synced history list (from Local Room DB sync) to show as Search History when query is empty

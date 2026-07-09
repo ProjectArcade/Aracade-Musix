@@ -2582,27 +2582,6 @@ fun MainScreen() {
                     2 -> LibraryScreen(backdrop = playlistBackdrop)
                     3 -> RecommendationsScreen()
                 }
-            }
-        }
-
-        // Downloads screen overlay
-        androidx.compose.animation.AnimatedVisibility(
-            visible = showDownloadsScreen,
-            enter = androidx.compose.animation.slideInHorizontally(initialOffsetX = { it }),
-            exit = androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(mainBackdrop)
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                com.arcadesoftware.musix.ui.screens.DownloadsScreen(
-                    onBackClick = { showDownloadsScreen = false }
-                )
-            }
-        }
 
         // Playlist details page overlay
         androidx.compose.animation.AnimatedVisibility(
@@ -2623,6 +2602,7 @@ fun MainScreen() {
             }
         }
 
+
         // Artist details page overlay
         androidx.compose.animation.AnimatedVisibility(
             visible = activeArtist != null,
@@ -2636,6 +2616,25 @@ fun MainScreen() {
                     backdrop = playlistBackdrop,
                     onBack = { PlayerManager.activeArtist.value = null },
                     onLikedArtistsChanged = {}
+                )
+            }
+        }
+
+
+            }
+
+        }
+
+        // Downloads screen overlay
+        if (showDownloadsScreen) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showDownloadsScreen = false },
+                containerColor = MaterialTheme.colorScheme.background,
+                dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
+                modifier = Modifier.fillMaxHeight(0.9f)
+            ) {
+                com.arcadesoftware.musix.ui.screens.DownloadsScreen(
+                    onBackClick = { showDownloadsScreen = false }
                 )
             }
         }

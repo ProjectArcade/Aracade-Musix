@@ -1,5 +1,7 @@
-import androidx.compose.ui.graphics.luminance
+
 package com.arcadesoftware.musix.components
+
+import androidx.compose.ui.graphics.luminance
 
 import android.graphics.RuntimeShader
 import android.os.Build

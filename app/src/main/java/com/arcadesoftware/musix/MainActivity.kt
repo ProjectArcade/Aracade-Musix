@@ -1,7 +1,7 @@
-import androidx.compose.ui.graphics.luminance
 package com.arcadesoftware.musix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.BlendMode
@@ -1777,8 +1777,8 @@ fun MainScreen() {
                 label = "settings_screen_transition"
             ) { screen ->
                 Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (screen == "Main") {
                         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -1790,66 +1790,13 @@ fun MainScreen() {
                             )
                         }
 
-                        if (currentUser == null) {
-                            OutlinedButton(
-                                onClick = {
-                                    if (isSigningIn) return@OutlinedButton
-                                    isSigningIn = true
-                                    scope.launch {
-                                        try {
-                                            val credentialManager = androidx.credentials.CredentialManager.create(context)
-                                            val request = androidx.credentials.GetCredentialRequest.Builder()
-                                                .addCredentialOption(
-                                                    com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                                                        .setFilterByAuthorizedAccounts(false)
-                                                        .setServerClientId("983178184530-c0grj95ua7kb862qnr0f9nnhr2g3t5qt.apps.googleusercontent.com")
-                                                        .setAutoSelectEnabled(false)
-                                                        .build()
-                                                )
-                                                .build()
-                                            val result = credentialManager.getCredential(context, request)
-                                            val credential = result.credential
-                                            if (credential is androidx.credentials.CustomCredential &&
-                                                credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                                            ) {
-                                                val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                                                val idToken = googleIdTokenCredential.idToken
-                                                val authCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-                                                com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(authCredential)
-                                                    .addOnSuccessListener {
-                                                        isSigningIn = false
-                                                        com.arcadesoftware.musix.db.FirestoreSyncManager.syncUserDetails(context)
-                                                        showWelcomePopup = true
-                                                        scope.launch {
-                                                            kotlinx.coroutines.delay(2500)
-                                                            showWelcomePopup = false
-                                                        }
-                                                    }
-                                                    .addOnFailureListener {
-                                                        isSigningIn = false
-                                                        android.widget.Toast.makeText(context, "Sign in failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show()
-                                                    }
-                                            } else {
-                                                isSigningIn = false
-                                            }
-                                        } catch (e: Exception) {
-                                            isSigningIn = false
-                                            android.widget.Toast.makeText(context, "Google Sign-In failed", android.widget.Toast.LENGTH_SHORT).show()
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().height(50.dp)
-                            ) {
-                                Text("Sign In with Google")
-                            }
-                        } else {
+                        if (currentUser != null) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(cardBg)
-                                    .padding(10.dp), // reduced padding
+                                    .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Glowing Sweep Gradient border on profile image (ONLY border rotates)
@@ -1922,7 +1869,7 @@ fun MainScreen() {
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Text("Cloud Sync Features", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                                     }
-                                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
+                                    Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                                 }
                             }
                         } else {
@@ -2026,7 +1973,7 @@ fun MainScreen() {
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Text("App Preferences", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                                 }
-                                Icon(Icons.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
+                                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                             }
                         }
 
@@ -2180,19 +2127,22 @@ fun MainScreen() {
                                 }
                             }
                             
-                            com.arcadesoftware.musix.components.LiquidButton(
+                            Button(
                                 onClick = {
                                     if (remainingSeconds == 0) {
                                         remainingSeconds = 180
                                         com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                     }
                                 },
-                                backdrop = mainBackdrop,
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                shape = RoundedCornerShape(14.dp)
                             ) {
                                 Text(
                                     if (remainingSeconds > 0) "Cooldown (${remainingSeconds}s)" else "Sync Now",
-                                    color = if (isLightMode) Color.Black else Color.White,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -2421,7 +2371,7 @@ fun MainScreen() {
                                     Text("System Equalizer", fontWeight = FontWeight.Medium, fontSize = 15.sp)
                                     Text("Configure audio frequencies and bass boost settings", fontSize = 12.sp, color = Color.Gray)
                                 }
-                                Icon(Icons.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
+                                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                             }
                             
                             androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
@@ -2660,27 +2610,43 @@ fun MainScreen() {
         }
 
         // Downloads screen overlay
-        if (showDownloadsScreen) {
-            androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { showDownloadsScreen = false },
-                containerColor = MaterialTheme.colorScheme.background,
-                dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
-                modifier = Modifier.fillMaxHeight(0.9f)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showDownloadsScreen,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxHeight(0.9f).fillMaxWidth(),
+            enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
+            exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it })
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(MaterialTheme.colorScheme.background)
             ) {
                 com.arcadesoftware.musix.ui.screens.DownloadsScreen(
                     onBackClick = { showDownloadsScreen = false }
+                )
+                // Add a drag handle at the top
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp)
+                        .width(32.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
                 )
             }
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = currentSong != null && !showDownloadsScreen,
+            visible = currentSong != null,
             modifier = Modifier.align(Alignment.BottomEnd),
             enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
             exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it })
         ) {
+            val currentBackdropForPlayer = if (activePlaylistDetail != null || activeArtist != null || activeUserPlaylist != null || selectedTab in 1..2) playlistBackdrop else mainBackdrop
             MiniPlayer(
-                backdrop = mainBackdrop,
+                backdrop = currentBackdropForPlayer,
                 currentSong = currentSong,
                 collapsedBottomPadding = if (showBottomBar) 112.dp else 24.dp
             )

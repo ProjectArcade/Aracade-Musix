@@ -1,5 +1,7 @@
-import androidx.compose.ui.graphics.luminance
+
 package com.arcadesoftware.musix.ui.screens
+
+import androidx.compose.ui.graphics.luminance
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -997,7 +999,7 @@ fun ArtistLibraryDetailScreen(
                         modifier = Modifier
                             .size(134.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF141416))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         if (!displayedThumbnail.isNullOrEmpty()) {
                             AsyncImage(

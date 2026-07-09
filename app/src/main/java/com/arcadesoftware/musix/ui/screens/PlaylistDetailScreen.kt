@@ -49,6 +49,7 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.*
 import io.github.robinpcrd.cupertino.CupertinoActivityIndicator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -70,6 +71,10 @@ fun PlaylistDetailScreen(
 
     var isLiked by remember(playlistItem.id) {
         mutableStateOf(LikedPlaylistsManager.isPlaylistLiked(context, playlistItem.id))
+    }
+
+    val alwaysShuffle = remember(context) {
+        context.getSharedPreferences("musix_profile_settings", android.content.Context.MODE_PRIVATE).getBoolean("always_shuffle", false)
     }
 
     val downloadProgressMap by PlayerManager.downloadProgressMap.collectAsState()
@@ -146,11 +151,29 @@ fun PlaylistDetailScreen(
         isLoading = true
         errorMsg = null
         try {
-            val fetchedData = withContext(Dispatchers.IO) {
+            val fetchedData: Pair<List<com.music.innertube.models.SongItem>, String?>? = withContext(Dispatchers.IO) {
                 if (playlistItem is PlaylistItem) {
-                    YouTube.playlist(playlistItem.id).getOrNull()?.let { Pair(it.songs, null) }
+                    val id = playlistItem.id
+                    val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
+                    if (id == "downloads" || id == "local_downloads") {
+                        val songs = db.musicDao().getDownloadedSongs().first().map { it.toSongItem() }
+                        Pair(songs, "Your downloaded offline music")
+                    } else if (id == "liked") {
+                        val likedSongIds = com.arcadesoftware.musix.db.LikedSongsManager.getLikedSongIds(context)
+                        val songs = db.musicDao().getPlayHistory().first().filter { likedSongIds.contains(it.id) }.map { it.toSongItem() }
+                        Pair(songs, "Songs you liked")
+                    } else if (id.toLongOrNull() != null) {
+                        val playlistId = id.toLong()
+                        val songs = db.musicDao().getSongsForPlaylist(playlistId).first().map { it.toSongItem() }
+                        val playlistEntity = db.musicDao().getPlaylists().first().find { it.id == playlistId }
+                        Pair(songs, playlistEntity?.name ?: "Custom Playlist")
+                    } else if (id.startsWith("artist_lib_") || id.startsWith("artist_section_") || id.startsWith("local_")) {
+                        Pair(com.arcadesoftware.musix.PlayerManager.queue.value as List<com.music.innertube.models.SongItem>, "Playing from Queue")
+                    } else {
+                        com.music.innertube.YouTube.playlist(id).getOrNull()?.let { Pair(it.songs as List<com.music.innertube.models.SongItem>, null) }
+                    }
                 } else if (playlistItem is AlbumItem) {
-                    YouTube.album(playlistItem.browseId).getOrNull()?.let { Pair(it.songs, it.description) }
+                    YouTube.album(playlistItem.browseId).getOrNull()?.let { Pair(it.songs as List<com.music.innertube.models.SongItem>, it.description) }
                 } else {
                     null
                 }
@@ -207,11 +230,11 @@ fun PlaylistDetailScreen(
                             coroutineScope.launch {
                                 isLoading = true
                                 errorMsg = null
-                                val fetchedData = withContext(Dispatchers.IO) {
+                                val fetchedData: Pair<List<com.music.innertube.models.SongItem>, String?>? = withContext(Dispatchers.IO) {
                                     if (playlistItem is PlaylistItem) {
-                                        YouTube.playlist(playlistItem.id).getOrNull()?.let { Pair(it.songs, null) }
+                                        YouTube.playlist(playlistItem.id).getOrNull()?.let { Pair(it.songs as List<com.music.innertube.models.SongItem>, null) }
                                     } else if (playlistItem is AlbumItem) {
-                                        YouTube.album(playlistItem.browseId).getOrNull()?.let { Pair(it.songs, it.description) }
+                                        YouTube.album(playlistItem.browseId).getOrNull()?.let { Pair(it.songs as List<com.music.innertube.models.SongItem>, it.description) }
                                     } else {
                                         null
                                     }
@@ -360,7 +383,7 @@ fun PlaylistDetailScreen(
                                         songs?.let { songList ->
                                             if (songList.isNotEmpty()) {
                                                 PlayerManager.currentPlayingPlaylist.value = playlistItem
-                                                PlayerManager.playQueue(songList, 0)
+                                                PlayerManager.playQueue(if (alwaysShuffle) songList.shuffled() else songList, 0)
                                             }
                                         }
                                     },
@@ -370,15 +393,24 @@ fun PlaylistDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.PlayArrow,
-                                        contentDescription = null,
-                                        tint = appleRed,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    if (alwaysShuffle) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Shuffle,
+                                            contentDescription = null,
+                                            tint = appleRed,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PlayArrow,
+                                            contentDescription = null,
+                                            tint = appleRed,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "Play",
+                                        text = if (alwaysShuffle) "Shuffle Play" else "Play",
                                         color = appleRed,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -407,12 +439,21 @@ fun PlaylistDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Shuffle,
-                                        contentDescription = null,
-                                        tint = appleRed,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    if (alwaysShuffle) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.ShuffleOn,
+                                            contentDescription = null,
+                                            tint = appleRed,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Shuffle,
+                                            contentDescription = null,
+                                            tint = appleRed,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Shuffle",
@@ -436,8 +477,18 @@ fun PlaylistDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        PlayerManager.currentPlayingPlaylist.value = playlistItem
-                                        PlayerManager.playQueue(songList, index)
+                                        songs?.let { songList ->
+                                            if (alwaysShuffle) {
+                                                val shuffled = songList.shuffled().toMutableList()
+                                                shuffled.remove(songItem)
+                                                shuffled.add(0, songItem)
+                                                PlayerManager.currentPlayingPlaylist.value = playlistItem
+                                                PlayerManager.playQueue(shuffled, 0)
+                                            } else {
+                                                PlayerManager.currentPlayingPlaylist.value = playlistItem
+                                                PlayerManager.playQueue(songList, index)
+                                            }
+                                        }
                                     }
                                     .padding(horizontal = 24.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically

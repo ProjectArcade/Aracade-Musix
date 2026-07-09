@@ -541,7 +541,7 @@ fun PlaylistScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(28.dp))
-                    .background(Color(0xFF1C1C1E))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(28.dp))
                     .padding(24.dp)
             ) {
@@ -569,8 +569,8 @@ fun PlaylistScreen(
                         placeholder = { Text("Playlist Title", color = Color.Gray) },
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF2C2C2E),
-                            unfocusedContainerColor = Color(0xFF2C2C2E),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             focusedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -1269,7 +1269,7 @@ private fun PlaylistCard(
     onDeleteClick: (() -> Unit)? = null,
     isDownloaded: Boolean = false,
     defaultIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.QueueMusic,
-    iconContainerColor: Color = Color(0xFF1C1C1E),
+    iconContainerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     iconColor: Color = Color(0xFFFA243C)
 ) {
     Column(
@@ -1283,7 +1283,7 @@ private fun PlaylistCard(
             modifier = Modifier
                 .size(140.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF141416))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(20.dp))
         ) {
             if (thumbnail != null) {

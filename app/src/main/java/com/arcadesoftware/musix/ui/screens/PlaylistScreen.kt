@@ -129,6 +129,10 @@ fun PlaylistScreen(
     var newPlaylistNameInput by remember { mutableStateOf("") }
     val selectedUserPlaylist by PlayerManager.activeUserPlaylist.collectAsState()
     var activeBuiltInPlaylist by remember { mutableStateOf<String?>(null) } // "liked" or "downloads"
+    
+    androidx.activity.compose.BackHandler(enabled = activeBuiltInPlaylist != null) {
+        activeBuiltInPlaylist = null
+    }
 
     LaunchedEffect(activePlaylistDetail, userPlaylists) {
         if (activePlaylistDetail == null) {

@@ -1363,6 +1363,10 @@ fun ArtistOnlineDetailView(
     var isOnlineLoading by remember { mutableStateOf(true) }
     var onlineError by remember { mutableStateOf<String?>(null) }
     var activeSectionEndpoint by remember { mutableStateOf<Pair<String, BrowseEndpoint>?>(null) }
+    
+    androidx.activity.compose.BackHandler(enabled = activeSectionEndpoint != null) {
+        activeSectionEndpoint = null
+    }
 
     LaunchedEffect(artistId) {
         isOnlineLoading = true

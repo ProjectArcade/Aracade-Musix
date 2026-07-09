@@ -13,8 +13,8 @@ android {
         applicationId = "com.arcadesoftware.musix"
         minSdk = 24
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.4.32"
+        versionCode = 15
+        versionName = "1.5.40"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

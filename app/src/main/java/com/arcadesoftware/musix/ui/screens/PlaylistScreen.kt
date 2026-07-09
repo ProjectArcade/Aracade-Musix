@@ -1591,6 +1591,9 @@ fun BuiltInPlaylistDetailScreen(
         likedSongIds = withContext(Dispatchers.IO) { LikedSongsManager.getLikedSongIds(context) }
     }
     
+    val sharedPrefs = context.getSharedPreferences("musix_profile_settings", android.content.Context.MODE_PRIVATE)
+    var alwaysShuffle by remember { mutableStateOf(sharedPrefs.getBoolean("always_shuffle", false)) }
+    
     val title = if (type == "liked") "Liked Songs" else "Downloads"
     val songs: List<SongItem> = if (type == "liked") {
         playHistory.filter { likedSongIds.contains(it.id) }.map { it.toSongItem() }.distinctBy { it.id }
@@ -1676,7 +1679,7 @@ fun BuiltInPlaylistDetailScreen(
                                 onClick = {
                                     if (songs.isNotEmpty()) {
                                         PlayerManager.currentPlayingPlaylist.value = downloadsPlaylistItem
-                                        PlayerManager.playQueue(songs, 0)
+                                        PlayerManager.playQueue(if (alwaysShuffle) songs.shuffled() else songs, 0)
                                     }
                                 },
                                 backdrop = backdrop,
@@ -1686,29 +1689,41 @@ fun BuiltInPlaylistDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                                    if (alwaysShuffle) {
+                                        Icon(Icons.Rounded.ShuffleOn, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                                    } else {
+                                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                                    }
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Play", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                                    Text(if (alwaysShuffle) "Shuffle Play" else "Play", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                                 }
                             }
                             LiquidButton(
                                 onClick = {
+                                    alwaysShuffle = !alwaysShuffle
+                                    sharedPrefs.edit().putBoolean("always_shuffle", alwaysShuffle).apply()
                                     if (songs.isNotEmpty()) {
                                         PlayerManager.currentPlayingPlaylist.value = downloadsPlaylistItem
-                                        val shuffled = songs.shuffled()
-                                        PlayerManager.playQueue(shuffled, 0)
+                                        if (alwaysShuffle) {
+                                            PlayerManager.playQueue(songs.shuffled(), 0)
+                                        } else {
+                                            PlayerManager.playQueue(songs, 0)
+                                        }
                                     }
                                 },
                                 backdrop = backdrop,
                                 modifier = Modifier.weight(1f),
-                                surfaceColor = MaterialTheme.colorScheme.surfaceVariant,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                surfaceColor = if (alwaysShuffle) appleRed.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                                tint = if (alwaysShuffle) appleRed else MaterialTheme.colorScheme.onSurfaceVariant
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Rounded.Shuffle, contentDescription = null)
+                                    Icon(
+                                        if (alwaysShuffle) Icons.Rounded.ShuffleOn else Icons.Rounded.Shuffle,
+                                        contentDescription = null
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Shuffle", fontWeight = FontWeight.Bold)
                                 }
@@ -1743,11 +1758,7 @@ fun BuiltInPlaylistDetailScreen(
                             downloadProgress = downloadProgress,
                             onClick = {
                                 PlayerManager.currentPlayingPlaylist.value = downloadsPlaylistItem
-                                if (downloadedEntity.localFilePath.isNotEmpty()) {
-                                    PlayerManager.playLocal(downloadedEntity.toSongItem(), downloadedEntity.localFilePath)
-                                } else {
-                                    PlayerManager.playQueue(songs, index)
-                                }
+                                PlayerManager.playQueue(songs, index)
                             },
                             onMoreClick = { onOptionsClick(downloadedEntity) }
                         )

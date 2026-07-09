@@ -52,6 +52,11 @@ object HomeCacheManager {
             }
         } catch (e: Exception) {
             android.util.Log.e("HomeCacheManager", "Failed to load homepage", e)
+            try {
+                File(context.cacheDir, HOME_PAGE_FILE).delete()
+            } catch (delEx: Exception) {
+                // ignore
+            }
         }
         
         try {
@@ -63,6 +68,11 @@ object HomeCacheManager {
             }
         } catch (e: Exception) {
             android.util.Log.e("HomeCacheManager", "Failed to load recommendations", e)
+            try {
+                File(context.cacheDir, RECOMMENDATIONS_FILE).delete()
+            } catch (delEx: Exception) {
+                // ignore
+            }
         }
         
         cachedHomePage = homePage

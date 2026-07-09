@@ -112,6 +112,7 @@ object PlayerManager {
     val autoPlayEnabled = MutableStateFlow(true)
     val repeatMode = MutableStateFlow(androidx.media3.common.Player.REPEAT_MODE_OFF)
     val disableAnimatedRings = MutableStateFlow(false)
+    val useCustomRingColor = MutableStateFlow(false)
     val ringColorIndex = MutableStateFlow(0f)
     val activePlaylistDetail = MutableStateFlow<YTItem?>(null)
     val activeArtistId = MutableStateFlow<String?>(null)
@@ -150,28 +151,12 @@ object PlayerManager {
     private var wakeLock: android.os.PowerManager.WakeLock? = null
 
     private fun acquireWakeLock() {
-        try {
-            if (wakeLock == null) {
-                val powerManager = appContext?.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                wakeLock = powerManager?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Musix:PlaybackWakeLock")
-                wakeLock?.setReferenceCounted(false)
-            }
-            wakeLock?.acquire(10 * 60 * 1000L) // 10 minutes timeout for safety
-            android.util.Log.d(TAG, "WakeLock acquired")
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to acquire WakeLock", e)
-        }
+        // Disabled manual wake lock logic to let ExoPlayer manage it via WAKE_MODE_LOCAL
+        // This fixes an issue where the device screen stays on or the device doesn't sleep
     }
 
     private fun releaseWakeLock() {
-        try {
-            if (wakeLock?.isHeld == true) {
-                wakeLock?.release()
-                android.util.Log.d(TAG, "WakeLock released")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to release WakeLock", e)
-        }
+        // Disabled manual wake lock logic
     }
 
     @Synchronized
@@ -422,7 +407,7 @@ object PlayerManager {
 
             exoPlayer = ExoPlayer.Builder(context)
                 .setAudioAttributes(audioAttributes, true)
-                .setWakeMode(androidx.media3.common.C.WAKE_MODE_NETWORK)
+                .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
                 .setMediaSourceFactory(
                     androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
                 )
@@ -486,7 +471,7 @@ object PlayerManager {
                                 // End of queue + loop mode → wrap to first song
                                 currentQueueIndex.value = 0
                                 playInternal(currentQueue[0])
-                            } else if (autoPlayEnabled.value) {
+                            } else if (autoPlayEnabled.value && currentPlayingPlaylist.value !is com.music.innertube.models.PlaylistItem && currentPlayingPlaylist.value !is com.music.innertube.models.AlbumItem) {
                                 // End of queue, no loop → fetch YouTube autoplay suggestions
                                 currentSong.value?.let { song ->
                                     scope.launch {
@@ -550,8 +535,6 @@ object PlayerManager {
 
     /** Play a song that is already stored locally on disk (no network needed). */
     fun playLocal(song: SongItem, localFilePath: String) {
-        queue.value = listOf(song)
-        currentQueueIndex.value = 0
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             currentSong.value = song
             updatePlaybackDetails()
@@ -1455,6 +1438,7 @@ class MainActivity : ComponentActivity() {
 
         val syncPrefs = getSharedPreferences("musix_profile_settings", Context.MODE_PRIVATE)
         PlayerManager.disableAnimatedRings.value = syncPrefs.getBoolean("disable_animated_rings", false)
+        PlayerManager.useCustomRingColor.value = syncPrefs.getBoolean("use_custom_ring_color", false)
         PlayerManager.ringColorIndex.value = syncPrefs.getFloat("ring_color_index", 0f)
 
         // Enable Firestore offline persistence so any writes queued while
@@ -2398,6 +2382,9 @@ fun MainScreen() {
                             var disableAnimatedRings by remember {
                                 mutableStateOf(syncSharedPrefs.getBoolean("disable_animated_rings", false))
                             }
+                            var useCustomRingColor by remember {
+                                mutableStateOf(syncSharedPrefs.getBoolean("use_custom_ring_color", false))
+                            }
                             var ringColorIndex by remember {
                                 mutableFloatStateOf(syncSharedPrefs.getFloat("ring_color_index", 0f))
                             }
@@ -2422,22 +2409,65 @@ fun MainScreen() {
                                 )
                             }
                             
-                            androidx.compose.animation.AnimatedVisibility(visible = disableAnimatedRings) {
+                            androidx.compose.material3.HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f), thickness = 0.5.dp)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Use Custom Ring Color", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                                    Text("Change the default animated gradient to a custom solid color", fontSize = 12.sp, color = Color.Gray)
+                                }
+                                com.arcadesoftware.musix.components.LiquidToggle(
+                                    selected = { useCustomRingColor },
+                                    onSelect = { isChecked ->
+                                        useCustomRingColor = isChecked
+                                        syncSharedPrefs.edit().putBoolean("use_custom_ring_color", isChecked).apply()
+                                        PlayerManager.useCustomRingColor.value = isChecked
+                                    },
+                                    backdrop = mainBackdrop
+                                )
+                            }
+                            
+                            androidx.compose.animation.AnimatedVisibility(visible = useCustomRingColor) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     Text("Ring Color Picker", fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 8.dp))
-                                    Slider(
-                                        value = ringColorIndex,
-                                        onValueChange = { 
-                                            ringColorIndex = it 
-                                            PlayerManager.ringColorIndex.value = it
-                                        },
-                                        onValueChangeFinished = {
-                                            syncSharedPrefs.edit().putFloat("ring_color_index", ringColorIndex).apply()
-                                            com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
-                                        },
-                                        valueRange = 0f..1f,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                .background(Color.hsv(ringColorIndex * 360f, 0.8f, 1f))
+                                        )
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            // Draw the rainbow track
+                                            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxWidth().height(8.dp).align(Alignment.Center).clip(RoundedCornerShape(4.dp))) {
+                                                val colors = (0..360 step 60).map { Color.hsv(it.toFloat(), 0.8f, 1f) }
+                                                drawRect(brush = androidx.compose.ui.graphics.Brush.horizontalGradient(colors))
+                                            }
+                                            Slider(
+                                                value = ringColorIndex,
+                                                onValueChange = { 
+                                                    ringColorIndex = it 
+                                                    PlayerManager.ringColorIndex.value = it
+                                                },
+                                                onValueChangeFinished = {
+                                                    syncSharedPrefs.edit().putFloat("ring_color_index", ringColorIndex).apply()
+                                                    com.arcadesoftware.musix.db.FirestoreSyncManager.syncSettings(context)
+                                                },
+                                                valueRange = 0f..1f,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                                    thumbColor = Color.White,
+                                                    activeTrackColor = Color.Transparent,
+                                                    inactiveTrackColor = Color.Transparent
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -2566,7 +2596,7 @@ fun MainScreen() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().layerBackdrop(mainBackdrop),
             bottomBar = {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showBottomBar,
@@ -2590,7 +2620,6 @@ fun MainScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .layerBackdrop(mainBackdrop)
                     .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
@@ -2680,7 +2709,7 @@ fun MainScreen() {
         }
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = currentSong != null,
+            visible = currentSong != null && !showDownloadsScreen,
             modifier = Modifier.align(Alignment.BottomEnd),
             enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
             exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it })
@@ -3425,6 +3454,9 @@ fun MiniPlayer(
     val isPlaying by PlayerManager.isPlaying.collectAsState()
     val currentPosition by PlayerManager.currentPosition.collectAsState()
     val currentDuration by PlayerManager.currentDuration.collectAsState()
+    val useCustomRingColor by PlayerManager.useCustomRingColor.collectAsState()
+    val ringColorIndex by PlayerManager.ringColorIndex.collectAsState()
+    val ringCustomColor = androidx.compose.ui.graphics.Color.hsv(ringColorIndex * 360f, 0.8f, 1f)
     val playbackProgress = if (currentDuration > 0) currentPosition.toFloat() / currentDuration else 0f
     val currentAlpha by androidx.compose.animation.core.animateFloatAsState(if (expanded) 0.85f else (if (isLightTheme) 0.5f else 0.4f))
     val containerColor = if (isLightTheme) Color.White.copy(alpha = currentAlpha) else Color.Black.copy(alpha = currentAlpha)
@@ -3570,53 +3602,30 @@ fun MiniPlayer(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(56.dp)
                 ) {
-                    val ringColorIndex by PlayerManager.ringColorIndex.collectAsState()
-                    val ringCustomColor = androidx.compose.ui.graphics.Color.hsv(ringColorIndex * 360f, 0.8f, 1f)
-                    
-                    androidx.compose.foundation.Canvas(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        val strokeWidth = 2.5.dp.toPx()
-                        val centerOffset = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-                        val radius = (size.minDimension - strokeWidth) / 2f
-
-                        // Background track
-                        drawCircle(
-                            color = contentColor.copy(alpha = 0.15f),
-                            radius = radius,
-                            center = centerOffset,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
-                        )
-
-                        if (!isRingsDisabled && isPlaying) {
-                            val sweepAngle = playbackProgress * 360f
-                            drawArc(
-                                brush = androidx.compose.ui.graphics.Brush.sweepGradient(
-                                    colors = listOf(
-                                        Color(0xFFFA243C),
-                                        Color(0xFF8B5CF6),
-                                        Color(0xFF06B6D4),
-                                        Color(0xFFEC4899),
-                                        Color(0xFFFA243C)
-                                    ),
-                                    center = centerOffset
-                                ),
-                                startAngle = -90f,
-                                sweepAngle = sweepAngle,
-                                useCenter = false,
-                                topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
-                                size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = strokeWidth,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
+                    if (!isRingsDisabled && isPlaying) {
+                        val brush = if (useCustomRingColor) {
+                            androidx.compose.ui.graphics.Brush.sweepGradient(
+                                colors = listOf(ringCustomColor, ringCustomColor.copy(alpha = 0.2f), ringCustomColor)
                             )
-                        } else if (isRingsDisabled) {
-                            val sweepAngle = playbackProgress * 360f
+                        } else {
+                            androidx.compose.ui.graphics.Brush.sweepGradient(
+                                colors = listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = rotationAngle }
+                                .border(2.5.dp, brush, CircleShape)
+                        )
+                    } else if (playbackProgress > 0f) {
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                            val strokeWidth = 2.5.dp.toPx()
+                            val radius = (size.minDimension - strokeWidth) / 2f
                             drawArc(
-                                color = ringCustomColor,
+                                color = contentColor.copy(alpha = 0.35f),
                                 startAngle = -90f,
-                                sweepAngle = sweepAngle,
+                                sweepAngle = playbackProgress * 360f,
                                 useCenter = false,
                                 topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
                                 size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
@@ -3627,6 +3636,7 @@ fun MiniPlayer(
                             )
                         }
                     }
+
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -3700,19 +3710,6 @@ fun MiniPlayer(
                             val sz = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
                             val arcOffset = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f)
 
-                            // Animated linear gradient (like slider) — scrolls left to right
-                            val linearBrush = androidx.compose.ui.graphics.Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFFFA243C),
-                                    Color(0xFF8B5CF6),
-                                    Color(0xFF06B6D4),
-                                    Color(0xFFEC4899),
-                                    Color(0xFFFA243C)
-                                ),
-                                start = androidx.compose.ui.geometry.Offset.Zero,
-                                end = androidx.compose.ui.geometry.Offset(size.width, size.height)
-                            )
-
                             // Draw background track
                             drawCircle(
                                 color = contentColor.copy(alpha = 0.15f),
@@ -3734,17 +3731,6 @@ fun MiniPlayer(
                                         width = strokeWidth * 1.5f,
                                         cap = androidx.compose.ui.graphics.StrokeCap.Round
                                     )
-                                )
-                            }
-
-                            // Always-rotating rainbow linear gradient ring (playing = full opacity, paused = slightly dim)
-                            rotate(rotationAngle) {
-                                drawCircle(
-                                    brush = linearBrush,
-                                    radius = radius,
-                                    center = centerOffset,
-                                    alpha = if (isPlaying) 1f else 0.7f,
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
                                 )
                             }
                         }
@@ -3827,20 +3813,33 @@ fun MiniPlayer(
                         ).value
                     }
 
-                    val artBorderBrush = remember(artRotation) {
+                    val artBorderBrush = remember(artRotation, ringCustomColor, useCustomRingColor) {
                         object : androidx.compose.ui.graphics.ShaderBrush() {
                             override fun createShader(size: androidx.compose.ui.geometry.Size): android.graphics.Shader {
-                                val shader = android.graphics.SweepGradient(
-                                    size.width / 2f,
-                                    size.height / 2f,
-                                    intArrayOf(
-                                        Color.Cyan.toArgb(),
-                                        Color.Magenta.toArgb(),
-                                        Color.Yellow.toArgb(),
-                                        Color.Cyan.toArgb()
-                                    ),
-                                    null
-                                )
+                                val shader = if (useCustomRingColor) {
+                                    android.graphics.SweepGradient(
+                                        size.width / 2f,
+                                        size.height / 2f,
+                                        intArrayOf(
+                                            ringCustomColor.toArgb(),
+                                            ringCustomColor.copy(alpha = 0.2f).toArgb(),
+                                            ringCustomColor.toArgb()
+                                        ),
+                                        null
+                                    )
+                                } else {
+                                    android.graphics.SweepGradient(
+                                        size.width / 2f,
+                                        size.height / 2f,
+                                        intArrayOf(
+                                            Color.Cyan.toArgb(),
+                                            Color.Magenta.toArgb(),
+                                            Color.Yellow.toArgb(),
+                                            Color.Cyan.toArgb()
+                                        ),
+                                        null
+                                    )
+                                }
                                 val matrix = android.graphics.Matrix()
                                 matrix.postRotate(artRotation, size.width / 2f, size.height / 2f)
                                 shader.setLocalMatrix(matrix)
@@ -4032,7 +4031,7 @@ fun MiniPlayer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(38.dp))
+                    Spacer(modifier = Modifier.weight(0.15f))
 
                     // Title + like button row
                     Row(
@@ -4103,7 +4102,7 @@ fun MiniPlayer(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.weight(0.1f))
 
                     // Seekbar with time labels
                     val sliderInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
@@ -4115,11 +4114,13 @@ fun MiniPlayer(
                             repeatMode = androidx.compose.animation.core.RepeatMode.Restart
                         )
                     )
-                    val animatedSliderColor = remember(sliderColorFraction) {
-                        val colors = listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
-                        val segment = sliderColorFraction.toInt().coerceIn(0, 2)
-                        val progress = sliderColorFraction - segment
-                        androidx.compose.ui.graphics.lerp(colors[segment], colors[segment + 1], progress)
+                    val animatedSliderColor = remember(sliderColorFraction, ringCustomColor, useCustomRingColor) {
+                        if (useCustomRingColor) ringCustomColor else {
+                            val colors = listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
+                            val segment = sliderColorFraction.toInt().coerceIn(0, 2)
+                            val progress = sliderColorFraction - segment
+                            androidx.compose.ui.graphics.lerp(colors[segment], colors[segment + 1], progress)
+                        }
                     }
 
                     var sliderDragValue by remember { mutableStateOf<Float?>(null) }
@@ -4167,7 +4168,7 @@ fun MiniPlayer(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.weight(0.12f))
 
                     // Playback controls
                     Row(

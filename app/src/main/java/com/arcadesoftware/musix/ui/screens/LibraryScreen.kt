@@ -191,6 +191,7 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .layerBackdrop(backdrop)
     ) {
         Column(
             modifier = Modifier
@@ -920,9 +921,10 @@ fun ArtistLibraryDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .layerBackdrop(backdrop)
     ) {
         // Blurred ambient background
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             if (!displayedThumbnail.isNullOrEmpty()) {
                 AsyncImage(
                     model = displayedThumbnail,

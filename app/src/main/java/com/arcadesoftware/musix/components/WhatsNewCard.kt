@@ -324,47 +324,21 @@ fun Modifier.rotatingGlowBorder(
     strokeWidth: androidx.compose.ui.unit.Dp = 2.5.dp,
     cornerRadius: androidx.compose.ui.unit.Dp = 24.dp
 ): Modifier {
-    val colors = listOf(
-        Color(0xFF00FFFF),
-        Color(0xFFFF00FF),
-        Color(0xFFFFCC00),
-        Color(0xFF00FFFF)
-    )
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val strokeWidthPx = with(density) { strokeWidth.toPx() }
-    val cornerRadiusPx = with(density) { cornerRadius.toPx() }
-
-    return this.drawBehind {
-        val width = size.width
-        val height = size.height
-        val centerX = width / 2f
-        val centerY = height / 2f
-
-        val sweepShader = android.graphics.SweepGradient(
-            centerX,
-            centerY,
-            colors.map { it.toArgb() }.toIntArray(),
-            null
-        )
-        val matrix = android.graphics.Matrix()
-        matrix.postRotate(rotation, centerX, centerY)
-        sweepShader.setLocalMatrix(matrix)
-
-        val paint = android.graphics.Paint().apply {
-            isAntiAlias = true
-            shader = sweepShader
-            style = android.graphics.Paint.Style.STROKE
-            this.strokeWidth = strokeWidthPx
-        }
-
-        drawContext.canvas.nativeCanvas.drawRoundRect(
-            strokeWidthPx / 2f,
-            strokeWidthPx / 2f,
-            width - strokeWidthPx / 2f,
-            height - strokeWidthPx / 2f,
-            cornerRadiusPx - strokeWidthPx / 2f,
-            cornerRadiusPx - strokeWidthPx / 2f,
-            paint
+    // Use Compose Brush.sweepGradient (created once via remember, not per-frame) and apply
+    // rotation via graphicsLayer. This avoids recreating a native SweepGradient shader on
+    // every animation frame, which caused SIGSEGV crashes in RenderThread.
+    val brush = remember {
+        androidx.compose.ui.graphics.Brush.sweepGradient(
+            colors = listOf(
+                Color(0xFF00FFFF),
+                Color(0xFFFF00FF),
+                Color(0xFFFFCC00),
+                Color(0xFF00FFFF)
+            )
         )
     }
+    return this
+        .graphicsLayer { rotationZ = rotation }
+        .border(strokeWidth, brush, androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius))
 }
+

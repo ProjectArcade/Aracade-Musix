@@ -3813,38 +3813,27 @@ fun MiniPlayer(
                         ).value
                     }
 
-                    val artBorderBrush = remember(artRotation, ringCustomColor, useCustomRingColor) {
-                        object : androidx.compose.ui.graphics.ShaderBrush() {
-                            override fun createShader(size: androidx.compose.ui.geometry.Size): android.graphics.Shader {
-                                val shader = if (useCustomRingColor) {
-                                    android.graphics.SweepGradient(
-                                        size.width / 2f,
-                                        size.height / 2f,
-                                        intArrayOf(
-                                            ringCustomColor.toArgb(),
-                                            ringCustomColor.copy(alpha = 0.2f).toArgb(),
-                                            ringCustomColor.toArgb()
-                                        ),
-                                        null
-                                    )
-                                } else {
-                                    android.graphics.SweepGradient(
-                                        size.width / 2f,
-                                        size.height / 2f,
-                                        intArrayOf(
-                                            Color.Cyan.toArgb(),
-                                            Color.Magenta.toArgb(),
-                                            Color.Yellow.toArgb(),
-                                            Color.Cyan.toArgb()
-                                        ),
-                                        null
-                                    )
-                                }
-                                val matrix = android.graphics.Matrix()
-                                matrix.postRotate(artRotation, size.width / 2f, size.height / 2f)
-                                shader.setLocalMatrix(matrix)
-                                return shader
-                            }
+                    // Static sweep-gradient brush; recreated only when colors change, NOT every frame.
+                    // Rotation is applied via graphicsLayer to avoid recreating GPU shaders 60x/sec,
+                    // which was the root cause of the RenderThread SIGSEGV crash.
+                    val artBorderBrush = remember(ringCustomColor, useCustomRingColor) {
+                        if (useCustomRingColor) {
+                            androidx.compose.ui.graphics.Brush.sweepGradient(
+                                colors = listOf(
+                                    ringCustomColor,
+                                    ringCustomColor.copy(alpha = 0.2f),
+                                    ringCustomColor
+                                )
+                            )
+                        } else {
+                            androidx.compose.ui.graphics.Brush.sweepGradient(
+                                colors = listOf(
+                                    Color.Cyan,
+                                    Color.Magenta,
+                                    Color.Yellow,
+                                    Color.Cyan
+                                )
+                            )
                         }
                     }
 
@@ -3864,11 +3853,12 @@ fun MiniPlayer(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Static gradient border box with rotating brush on top
+                        // Rotating rainbow border — rotation applied via graphicsLayer (no GPU shader churn)
                         if (!isRingsDisabled) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .graphicsLayer { rotationZ = artRotation }
                                     .border(
                                         3.dp,
                                         artBorderBrush,

@@ -1,3 +1,4 @@
+import androidx.compose.ui.graphics.luminance
 package com.arcadesoftware.musix.ui.screens
 
 import androidx.compose.animation.*
@@ -225,7 +226,7 @@ fun LibraryScreen(
             com.arcadesoftware.musix.components.LiquidButton(
                 onClick = {},
                 backdrop = backdrop,
-                surfaceColor = if (!androidx.compose.foundation.isSystemInDarkTheme()) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f),
+                surfaceColor = if (androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f),
                 blurRadius = 4.dp,
                 isInteractive = false,
                 shape = { RoundedCornerShape(28.dp) },

@@ -1,3 +1,4 @@
+import androidx.compose.ui.graphics.luminance
 package com.arcadesoftware.musix.components
 
 import android.graphics.RuntimeShader
@@ -406,7 +407,7 @@ fun LiquidBottomTabs(
     height: Dp = 56.dp,
     content: @Composable RowScope.() -> Unit
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val isLiquidGlass = LocalIsLiquidGlassEnabled.current
     val finalAccentColor = if (accentColor != Color.Unspecified) accentColor else (if (isLightTheme) Color(0xFFFA243C) else Color(0xFFFA243C))
     val containerColor = if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f)
@@ -660,7 +661,7 @@ fun CollapsibleTopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val containerColor = if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f)
 
@@ -822,7 +823,7 @@ fun LiquidSlider(
     onValueChangeFinished: (() -> Unit)? = null,
     colors: List<Color>? = null
 ) {
-    val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val trackColor =
         if (isLightTheme) Color(0xFF787878).copy(0.2f)
         else Color(0xFF787880).copy(0.36f)
@@ -1049,7 +1050,7 @@ fun LiquidToggle(
     backdrop: Backdrop,
     modifier: Modifier = Modifier
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val accentColor =
         if (isLightTheme) Color(0xFF34C759)
         else Color(0xFF30D158)

@@ -1,3 +1,4 @@
+import androidx.compose.ui.graphics.luminance
 package com.arcadesoftware.musix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
@@ -1901,13 +1902,13 @@ fun MainScreen() {
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Box(modifier = Modifier.fillMaxWidth()) {
+                        if (currentUser != null) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(cardBg)
-                                    .then(if (currentUser == null) Modifier.graphicsLayer { alpha = 0.5f } else Modifier)
-                                    .clickable(enabled = currentUser != null) { settingsScreen = "Cloud" }
+                                    .clickable { settingsScreen = "Cloud" }
                                     .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
@@ -1921,81 +1922,87 @@ fun MainScreen() {
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Text("Cloud Sync Features", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                                     }
-                                    Icon(Icons.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
                                 }
                             }
-
-                            if (currentUser == null) {
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable {
-                                            if (isSigningIn) return@clickable
-                                            isSigningIn = true
-                                            scope.launch {
-                                                try {
-                                                    val credentialManager = androidx.credentials.CredentialManager.create(context)
-                                                    val request = androidx.credentials.GetCredentialRequest.Builder()
-                                                        .addCredentialOption(
-                                                            com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
-                                                                .setFilterByAuthorizedAccounts(false)
-                                                                .setServerClientId("983178184530-c0grj95ua7kb862qnr0f9nnhr2g3t5qt.apps.googleusercontent.com")
-                                                                .setAutoSelectEnabled(false)
-                                                                .build()
-                                                        )
-                                                        .build()
-                                                    val result = credentialManager.getCredential(context, request)
-                                                    val credential = result.credential
-                                                    if (credential is androidx.credentials.CustomCredential &&
-                                                        credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                                                    ) {
-                                                        val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
-                                                        val idToken = googleIdTokenCredential.idToken
-                                                        val authCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-                                                        com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(authCredential)
-                                                            .addOnSuccessListener {
-                                                                isSigningIn = false
-                                                                com.arcadesoftware.musix.db.FirestoreSyncManager.syncUserDetails(context)
-                                                                showWelcomePopup = true
-                                                                scope.launch {
-                                                                    kotlinx.coroutines.delay(2500)
-                                                                    showWelcomePopup = false
-                                                                }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(cardBg)
+                                    .clickable {
+                                        if (isSigningIn) return@clickable
+                                        isSigningIn = true
+                                        scope.launch {
+                                            try {
+                                                val credentialManager = androidx.credentials.CredentialManager.create(context)
+                                                val request = androidx.credentials.GetCredentialRequest.Builder()
+                                                    .addCredentialOption(
+                                                        com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+                                                            .setFilterByAuthorizedAccounts(false)
+                                                            .setServerClientId("983178184530-c0grj95ua7kb862qnr0f9nnhr2g3t5qt.apps.googleusercontent.com")
+                                                            .setAutoSelectEnabled(false)
+                                                            .build()
+                                                    )
+                                                    .build()
+                                                val result = credentialManager.getCredential(context, request)
+                                                val credential = result.credential
+                                                if (credential is androidx.credentials.CustomCredential &&
+                                                    credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                                ) {
+                                                    val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
+                                                    val idToken = googleIdTokenCredential.idToken
+                                                    val authCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+                                                    com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(authCredential)
+                                                        .addOnSuccessListener {
+                                                            isSigningIn = false
+                                                            com.arcadesoftware.musix.db.FirestoreSyncManager.syncUserDetails(context)
+                                                            showWelcomePopup = true
+                                                            scope.launch {
+                                                                kotlinx.coroutines.delay(2500)
+                                                                showWelcomePopup = false
                                                             }
-                                                            .addOnFailureListener {
-                                                                isSigningIn = false
-                                                                android.widget.Toast.makeText(context, "Sign in failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show()
-                                                            }
-                                                    } else {
-                                                        isSigningIn = false
-                                                    }
-                                                } catch (e: Exception) {
+                                                        }
+                                                        .addOnFailureListener {
+                                                            isSigningIn = false
+                                                            android.widget.Toast.makeText(context, "Sign in failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show()
+                                                        }
+                                                } else {
                                                     isSigningIn = false
-                                                    android.widget.Toast.makeText(context, "Google Sign-In failed", android.widget.Toast.LENGTH_SHORT).show()
-                                                    e.printStackTrace()
                                                 }
+                                            } catch (e: Exception) {
+                                                isSigningIn = false
+                                                android.widget.Toast.makeText(context, "Google Sign-In failed", android.widget.Toast.LENGTH_SHORT).show()
+                                                e.printStackTrace()
                                             }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    androidx.compose.material3.Surface(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                                        shape = RoundedCornerShape(20.dp),
-                                        shadowElevation = 4.dp
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Sign In Required", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         }
                                     }
+                                    .padding(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isSigningIn) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        Icon(
+                                            painter = androidx.compose.ui.res.painterResource(com.arcadesoftware.musix.R.drawable.ic_google),
+                                            contentDescription = "Google",
+                                            modifier = Modifier.size(24.dp),
+                                            tint = Color.Unspecified
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text("Sign In With Google", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                                 }
                             }
+                        }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -2160,6 +2167,33 @@ fun MainScreen() {
                                         com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
                                     },
                                     backdrop = mainBackdrop
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            var remainingSeconds by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(remainingSeconds) {
+                                if (remainingSeconds > 0) {
+                                    kotlinx.coroutines.delay(1000)
+                                    remainingSeconds -= 1
+                                }
+                            }
+                            
+                            com.arcadesoftware.musix.components.LiquidButton(
+                                onClick = {
+                                    if (remainingSeconds == 0) {
+                                        remainingSeconds = 180
+                                        com.arcadesoftware.musix.db.FirestoreSyncManager.schedulePushAllLocalDataToFirestore(context)
+                                    }
+                                },
+                                backdrop = mainBackdrop,
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Text(
+                                    if (remainingSeconds > 0) "Cooldown (${remainingSeconds}s)" else "Sync Now",
+                                    color = if (isLightMode) Color.Black else Color.White,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -2678,7 +2712,7 @@ fun MainScreen() {
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
             val popupAlpha = if (isLight) 0.5f else 0.4f
             val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
             val popupShape = RoundedCornerShape(14.dp)
@@ -2785,7 +2819,7 @@ fun MainScreen() {
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
             val popupAlpha = if (isLight) 0.5f else 0.4f
             val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
             val popupShape = RoundedCornerShape(14.dp)
@@ -2891,7 +2925,7 @@ fun MainScreen() {
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
             val popupAlpha = if (isLight) 0.5f else 0.4f
             val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
             val popupShape = RoundedCornerShape(14.dp)
@@ -2983,7 +3017,7 @@ fun MainScreen() {
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
             val popupAlpha = if (isLight) 0.5f else 0.4f
             val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
             val popupShape = RoundedCornerShape(14.dp)
@@ -3083,7 +3117,7 @@ fun MainScreen() {
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+            val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
             val popupAlpha = if (isLight) 0.5f else 0.4f
             val containerColor = if (isLight) Color.White.copy(alpha = popupAlpha) else Color.Black.copy(alpha = popupAlpha)
             val popupShape = RoundedCornerShape(14.dp)
@@ -3207,7 +3241,7 @@ fun AppBottomBar(
     onSearchClick: () -> Unit,
     backdrop: com.kyant.backdrop.Backdrop
 ) {
-    val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val activeColor = Color(0xFFFA243C) // Apple Music Red
     val inactiveColor = if (isLightTheme) Color.Black else Color.White
     val containerColor = if (isLightTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.4f)
@@ -3380,7 +3414,7 @@ fun MiniPlayer(
             }
         }
     }
-    val isLightTheme = !androidx.compose.foundation.isSystemInDarkTheme()
+    val isLightTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
     val isPlaying by PlayerManager.isPlaying.collectAsState()
     val currentPosition by PlayerManager.currentPosition.collectAsState()
     val currentDuration by PlayerManager.currentDuration.collectAsState()

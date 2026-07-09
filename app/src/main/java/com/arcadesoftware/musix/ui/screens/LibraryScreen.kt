@@ -80,6 +80,11 @@ fun LibraryScreen(
 
     var likedSongIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedArtist by remember { mutableStateOf<LibraryArtist?>(null) }
+    
+    androidx.activity.compose.BackHandler(enabled = selectedArtist != null) {
+        selectedArtist = null
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var isGridView by remember { mutableStateOf(true) }
 

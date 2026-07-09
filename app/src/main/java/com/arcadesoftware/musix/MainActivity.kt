@@ -3481,7 +3481,7 @@ fun MiniPlayer(
                 val playlist = PlayerManager.currentPlayingPlaylist.value
                 if (playlist != null && activePlaylistDetail == null) {
                     val id = (playlist as? PlaylistItem)?.id
-                    if (id == "downloads" || id?.toLongOrNull() != null) {
+                    if (id == "downloads" || id == "liked" || id?.toLongOrNull() != null) {
                         // local playlist — don't open YT detail, just expand player
                         expanded = true
                     } else {

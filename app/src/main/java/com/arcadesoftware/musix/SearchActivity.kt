@@ -121,6 +121,7 @@ fun SearchScreen(onBack: () -> Unit) {
 
     // Fetch synced history list (from Local Room DB sync) to show as Search History when query is empty
     var searchHistoryList by remember { mutableStateOf<List<com.arcadesoftware.musix.db.entities.PlayHistoryEntity>>(emptyList()) }
+    var showAddToPlaylistForSong by remember { mutableStateOf<SongItem?>(null) }
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
@@ -183,7 +184,10 @@ fun SearchScreen(onBack: () -> Unit) {
                             ) {
                                 SearchSongRow(
                                     song = song,
-                                    onClick = { PlayerManager.play(song) }
+                                    onClick = {
+                                        PlayerManager.play(song)
+                                    },
+                                    onAddClick = { showAddToPlaylistForSong = song }
                                 )
                             }
                         }
@@ -296,6 +300,15 @@ fun SearchScreen(onBack: () -> Unit) {
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
+                                    
+                                    IconButton(onClick = { showAddToPlaylistForSong = song }) {
+                                        Icon(
+                                            Icons.Rounded.Add,
+                                            contentDescription = "Add to Playlist",
+                                            tint = MaterialTheme.colorScheme.onBackground
+                                        )
+                                    }
+                                    
                                     Icon(
                                         imageVector = Icons.Rounded.History,
                                         contentDescription = null,
@@ -412,12 +425,21 @@ fun SearchScreen(onBack: () -> Unit) {
             )
         }
     }
+    
+    // Add to playlist modal
+    showAddToPlaylistForSong?.let { song ->
+        AddToPlaylistSheet(
+            song = song,
+            onDismiss = { showAddToPlaylistForSong = null }
+        )
+    }
 }
 
 @Composable
 fun SearchSongRow(
     song: SongItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -450,7 +472,7 @@ fun SearchSongRow(
                 text = song.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

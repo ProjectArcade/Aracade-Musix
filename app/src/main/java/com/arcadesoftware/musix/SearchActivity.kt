@@ -78,10 +78,32 @@ fun SearchScreen(onBack: () -> Unit) {
     val focusManager = LocalFocusManager.current
     val backdrop = rememberLayerBackdrop()
 
+    // Fetch synced history list (from Local SharedPreferences) to show as Search History when query is empty
+    var searchHistoryList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showAddToPlaylistForSong by remember { mutableStateOf<SongItem?>(null) }
+    val context = LocalContext.current
+    
+    val loadSearchHistory = {
+        val prefs = context.getSharedPreferences("search_cache_prefs", android.content.Context.MODE_PRIVATE)
+        val historyStr = prefs.getString("search_history", "") ?: ""
+        searchHistoryList = if (historyStr.isNotEmpty()) historyStr.split("|||") else emptyList()
+    }
+    
+    val addSearchHistory = { searchQuery: String ->
+        val current = searchHistoryList.toMutableList()
+        current.remove(searchQuery)
+        current.add(0, searchQuery)
+        val maxHistory = current.take(10)
+        searchHistoryList = maxHistory
+        val prefs = context.getSharedPreferences("search_cache_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("search_history", maxHistory.joinToString("|||")).apply()
+    }
+
     val searchSongs: (String) -> Unit = { searchQuery ->
         if (searchQuery.isNotBlank()) {
             focusManager.clearFocus()
             isLoading = true
+            addSearchHistory(searchQuery)
             scope.launch(Dispatchers.IO) {
                 val searchResult = YouTube.search(searchQuery, com.music.innertube.YouTube.SearchFilter.FILTER_SONG)
                 withContext(Dispatchers.Main) {
@@ -119,19 +141,10 @@ fun SearchScreen(onBack: () -> Unit) {
         }
     }
 
-    // Fetch synced history list (from Local Room DB sync) to show as Search History when query is empty
-    var searchHistoryList by remember { mutableStateOf<List<com.arcadesoftware.musix.db.entities.PlayHistoryEntity>>(emptyList()) }
-    var showAddToPlaylistForSong by remember { mutableStateOf<SongItem?>(null) }
-    val context = LocalContext.current
+
+    
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
-            db.musicDao().getPlayHistory().collect { historyList ->
-                withContext(Dispatchers.Main) {
-                    searchHistoryList = historyList.take(6) // limit to recent 6 entries
-                }
-            }
-        }
+        loadSearchHistory()
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -244,7 +257,7 @@ fun SearchScreen(onBack: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Recently Synced History",
+                                        text = "Recent Searches",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onBackground
@@ -254,67 +267,38 @@ fun SearchScreen(onBack: () -> Unit) {
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.clickable {
-                                            scope.launch(Dispatchers.IO) {
-                                                val db = com.arcadesoftware.musix.db.AppDatabase.getDatabase(context)
-                                                val likedIds = com.arcadesoftware.musix.db.LikedSongsManager.getLikedSongIds(context).toList()
-                                                db.musicDao().clearPlayHistorySafe(likedIds)
-                                            }
+                                            searchHistoryList = emptyList()
+                                            context.getSharedPreferences("search_cache_prefs", android.content.Context.MODE_PRIVATE)
+                                                .edit().remove("search_history").apply()
                                         }
                                     )
                                 }
                             }
                             
-                            items(searchHistoryList) { historyItem ->
-                                val song = historyItem.toSongItem()
+                            items(searchHistoryList) { historyQuery ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable {
-                                            query = song.title
-                                            PlayerManager.play(song)
+                                            query = historyQuery
+                                            searchSongs(historyQuery)
                                         }
-                                        .padding(vertical = 4.dp),
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    AsyncImage(
-                                        model = song.thumbnail,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = song.title,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = song.artists?.firstOrNull()?.name ?: "Unknown Artist",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    
-                                    IconButton(onClick = { showAddToPlaylistForSong = song }) {
-                                        Icon(
-                                            Icons.Rounded.Add,
-                                            contentDescription = "Add to Playlist",
-                                            tint = MaterialTheme.colorScheme.onBackground
-                                        )
-                                    }
-                                    
                                     Icon(
                                         imageVector = Icons.Rounded.History,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                         modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(
+                                        text = historyQuery,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onBackground
                                     )
                                 }
                             }

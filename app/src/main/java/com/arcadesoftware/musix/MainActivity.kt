@@ -63,7 +63,7 @@ import com.arcadesoftware.musix.ui.screens.HomeScreen
 import com.arcadesoftware.musix.ui.screens.PlaylistScreen
 import com.arcadesoftware.musix.ui.screens.RecommendationsScreen
 import com.arcadesoftware.musix.ui.screens.LibraryScreen
-
+import com.arcadesoftware.musix.components.rotatingGlowBorder
 import androidx.compose.ui.text.font.FontWeight
 import com.arcadesoftware.musix.ui.screens.PlaylistDetailScreen
 import android.content.Context
@@ -3804,21 +3804,30 @@ fun MiniPlayer(
                     // Album art section
                     val isRingsDisabled by PlayerManager.disableAnimatedRings.collectAsState()
                     val artInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "artTransition")
-                    // Fix 5: square-orbiting glowing dot around the image edge
-                    val squareOrbitFraction by artInfiniteTransition.animateFloat(
-                        initialValue = 0f, targetValue = 1f,
+                    val borderRotation by artInfiniteTransition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
                         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                            animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                            animation = androidx.compose.animation.core.tween(4000, easing = androidx.compose.animation.core.LinearEasing),
                             repeatMode = androidx.compose.animation.core.RepeatMode.Restart
                         ),
-                        label = "squareOrbit"
+                        label = "borderRotation"
                     )
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(0.72f)
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(24.dp))
+                            .then(
+                                if (!isRingsDisabled) {
+                                    Modifier.rotatingGlowBorder(
+                                        rotation = borderRotation,
+                                        strokeWidth = 3.dp,
+                                        cornerRadius = 24.dp
+                                    )
+                                } else Modifier
+                            )
+                            .padding(3.dp)
+                            .clip(RoundedCornerShape(21.dp))
                             .background(Color.Gray.copy(if (showLyrics) 0.1f else 0.3f))
                     ) {
                         // Always show album art underneath
@@ -3829,62 +3838,6 @@ fun MiniPlayer(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Square-orbit ring: a glowing dot racing around the edge of the image
-                        if (!isRingsDisabled) {
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                val stroke = 3.dp.toPx()
-                                val padding = stroke / 2f
-                                val w = size.width - stroke
-                                val h = size.height - stroke
-                                val perimeter = 2f * (w + h)
-                                val dist = (squareOrbitFraction * perimeter).coerceIn(0f, perimeter)
-
-                                // Gradient colors cycling with fraction
-                                val gradColors = if (useCustomRingColor)
-                                    listOf(ringCustomColor, ringCustomColor.copy(alpha = 0.2f), ringCustomColor)
-                                else listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
-                                val segmentColor = run {
-                                    val idx = ((squareOrbitFraction * (gradColors.size - 1)).toInt()).coerceIn(0, gradColors.size - 2)
-                                    val frac = (squareOrbitFraction * (gradColors.size - 1)) - idx
-                                    androidx.compose.ui.graphics.lerp(gradColors[idx], gradColors[idx + 1], frac)
-                                }
-
-                                // Compute dot position along the square perimeter
-                                val dotPos: androidx.compose.ui.geometry.Offset = when {
-                                    dist <= w -> // top edge: left → right
-                                        androidx.compose.ui.geometry.Offset(padding + dist, padding)
-                                    dist <= w + h -> // right edge: top → bottom
-                                        androidx.compose.ui.geometry.Offset(padding + w, padding + (dist - w))
-                                    dist <= 2 * w + h -> // bottom edge: right → left
-                                        androidx.compose.ui.geometry.Offset(padding + w - (dist - w - h), padding + h)
-                                    else -> // left edge: bottom → top
-                                        androidx.compose.ui.geometry.Offset(padding, padding + h - (dist - 2 * w - h))
-                                }
-
-                                // Draw full border at low alpha
-                                drawRoundRect(
-                                    color = segmentColor.copy(alpha = 0.25f),
-                                    topLeft = androidx.compose.ui.geometry.Offset(padding, padding),
-                                    size = androidx.compose.ui.geometry.Size(w, h),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx()),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
-                                )
-                                // Draw glowing dot
-                                drawCircle(
-                                    color = segmentColor,
-                                    radius = stroke * 2.5f,
-                                    center = dotPos
-                                )
-                                // Glow halo
-                                drawCircle(
-                                    color = segmentColor.copy(alpha = 0.35f),
-                                    radius = stroke * 5f,
-                                    center = dotPos
-                                )
-                            }
-                        }
 
                         // Lyrics overlay slides on top
                         androidx.compose.animation.AnimatedVisibility(

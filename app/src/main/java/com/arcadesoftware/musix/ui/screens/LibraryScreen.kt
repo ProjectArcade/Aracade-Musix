@@ -52,7 +52,7 @@ import com.music.innertube.YouTube
 import com.music.innertube.pages.ArtistPage
 import com.music.innertube.pages.ArtistSection
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
+import com.arcadesoftware.musix.components.layerBackdrop
 import io.github.robinpcrd.cupertino.CupertinoActivityIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -191,7 +191,6 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .layerBackdrop(backdrop)
     ) {
         Column(
             modifier = Modifier
@@ -921,7 +920,6 @@ fun ArtistLibraryDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .layerBackdrop(backdrop)
     ) {
         // Blurred ambient background
         Box(modifier = Modifier.fillMaxSize()) {
@@ -1037,7 +1035,7 @@ fun ArtistLibraryDetailScreen(
             }
 
             // Tabs for Library vs Online (if available)
-            if (hasOnlineProfile) {
+            if (hasOnlineProfile && displaySongs.isNotEmpty()) {
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color.Transparent,
@@ -1214,10 +1212,11 @@ fun ArtistLibraryDetailScreen(
         ) {
             // Back button
             Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                com.arcadesoftware.musix.components.LiquidButton(
+                androidx.compose.material3.IconButton(
                     onClick = onBack,
-                    backdrop = backdrop,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
@@ -1238,11 +1237,12 @@ fun ArtistLibraryDetailScreen(
                     enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
                     exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
                 ) {
-                    com.arcadesoftware.musix.components.LiquidButton(
-                        onClick = {},
-                        backdrop = backdrop,
-                        modifier = Modifier.height(36.dp).wrapContentWidth(),
-                        isInteractive = false
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .wrapContentWidth()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             artist.name,
@@ -1263,7 +1263,7 @@ fun ArtistLibraryDetailScreen(
                     mutableStateOf(LikedArtistsManager.isArtistLiked(context, artist.id)) 
                 }
                 Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-                    com.arcadesoftware.musix.components.LiquidButton(
+                    androidx.compose.material3.IconButton(
                         onClick = {
                             val willBeLiked = LikedArtistsManager.toggleLikeArtist(context, artist.id, artist.name, artist.thumbnailUrl)
                             isLiked = willBeLiked
@@ -1272,8 +1272,9 @@ fun ArtistLibraryDetailScreen(
                             }
                             onLikedArtistsChanged()
                         },
-                        backdrop = backdrop,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
                     ) {
                         Icon(
                             imageVector = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -1876,10 +1877,11 @@ fun ArtistSectionDetailView(
         ) {
             // Back button
             Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                com.arcadesoftware.musix.components.LiquidButton(
+                androidx.compose.material3.IconButton(
                     onClick = onBack,
-                    backdrop = backdrop,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
@@ -1900,11 +1902,12 @@ fun ArtistSectionDetailView(
                     enter = fadeIn() + expandHorizontally() + scaleIn(initialScale = 0.8f),
                     exit = fadeOut() + shrinkHorizontally() + scaleOut(targetScale = 0.8f)
                 ) {
-                    com.arcadesoftware.musix.components.LiquidButton(
-                        onClick = {},
-                        backdrop = backdrop,
-                        modifier = Modifier.height(36.dp).wrapContentWidth(),
-                        isInteractive = false
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .wrapContentWidth()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             title,

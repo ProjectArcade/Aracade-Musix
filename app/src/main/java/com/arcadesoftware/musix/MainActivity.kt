@@ -2596,7 +2596,7 @@ fun MainScreen() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.fillMaxSize().layerBackdrop(mainBackdrop),
+            modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showBottomBar,
@@ -2620,6 +2620,7 @@ fun MainScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .layerBackdrop(mainBackdrop)
                     .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
@@ -3718,10 +3719,12 @@ fun MiniPlayer(
                                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
                             )
 
-                            if (!isPlaying && playbackProgress > 0f) {
-                                // Dim progress arc underneath showing how far we are
+                            // Always show progress arc (playing or paused) with the same gradient tint
+                            if (playbackProgress > 0f) {
                                 drawArc(
-                                    color = contentColor.copy(alpha = 0.35f),
+                                    color = if (useCustomRingColor) ringCustomColor.copy(alpha = if (isPlaying) 0.9f else 0.55f)
+                                            else if (isPlaying) Color.Cyan.copy(alpha = 0.9f)
+                                            else contentColor.copy(alpha = 0.35f),
                                     startAngle = -90f,
                                     sweepAngle = playbackProgress * 360f,
                                     useCenter = false,
@@ -3798,49 +3801,22 @@ fun MiniPlayer(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Album art / Lyrics Box
+                    // Album art section
                     val isRingsDisabled by PlayerManager.disableAnimatedRings.collectAsState()
-                    val artInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-                    val artRotation = if (isRingsDisabled) {
-                        0f
-                    } else {
-                        artInfiniteTransition.animateFloat(
-                            initialValue = 0f, targetValue = 360f,
-                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                                animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
-                                repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                            )
-                        ).value
-                    }
-
-                    // Static sweep-gradient brush; recreated only when colors change, NOT every frame.
-                    // Rotation is applied via graphicsLayer to avoid recreating GPU shaders 60x/sec,
-                    // which was the root cause of the RenderThread SIGSEGV crash.
-                    val artBorderBrush = remember(ringCustomColor, useCustomRingColor) {
-                        if (useCustomRingColor) {
-                            androidx.compose.ui.graphics.Brush.sweepGradient(
-                                colors = listOf(
-                                    ringCustomColor,
-                                    ringCustomColor.copy(alpha = 0.2f),
-                                    ringCustomColor
-                                )
-                            )
-                        } else {
-                            androidx.compose.ui.graphics.Brush.sweepGradient(
-                                colors = listOf(
-                                    Color.Cyan,
-                                    Color.Magenta,
-                                    Color.Yellow,
-                                    Color.Cyan
-                                )
-                            )
-                        }
-                    }
+                    val artInfiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "artTransition")
+                    // Fix 5: square-orbiting glowing dot around the image edge
+                    val squareOrbitFraction by artInfiniteTransition.animateFloat(
+                        initialValue = 0f, targetValue = 1f,
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                        ),
+                        label = "squareOrbit"
+                    )
 
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
+                            .fillMaxWidth(0.72f)
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(24.dp))
                             .background(Color.Gray.copy(if (showLyrics) 0.1f else 0.3f))
@@ -3853,18 +3829,61 @@ fun MiniPlayer(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Rotating rainbow border — rotation applied via graphicsLayer (no GPU shader churn)
+                        // Square-orbit ring: a glowing dot racing around the edge of the image
                         if (!isRingsDisabled) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer { rotationZ = artRotation }
-                                    .border(
-                                        3.dp,
-                                        artBorderBrush,
-                                        RoundedCornerShape(24.dp)
-                                    )
-                            )
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                val stroke = 3.dp.toPx()
+                                val padding = stroke / 2f
+                                val w = size.width - stroke
+                                val h = size.height - stroke
+                                val perimeter = 2f * (w + h)
+                                val dist = (squareOrbitFraction * perimeter).coerceIn(0f, perimeter)
+
+                                // Gradient colors cycling with fraction
+                                val gradColors = if (useCustomRingColor)
+                                    listOf(ringCustomColor, ringCustomColor.copy(alpha = 0.2f), ringCustomColor)
+                                else listOf(Color.Cyan, Color.Magenta, Color.Yellow, Color.Cyan)
+                                val segmentColor = run {
+                                    val idx = ((squareOrbitFraction * (gradColors.size - 1)).toInt()).coerceIn(0, gradColors.size - 2)
+                                    val frac = (squareOrbitFraction * (gradColors.size - 1)) - idx
+                                    androidx.compose.ui.graphics.lerp(gradColors[idx], gradColors[idx + 1], frac)
+                                }
+
+                                // Compute dot position along the square perimeter
+                                val dotPos: androidx.compose.ui.geometry.Offset = when {
+                                    dist <= w -> // top edge: left → right
+                                        androidx.compose.ui.geometry.Offset(padding + dist, padding)
+                                    dist <= w + h -> // right edge: top → bottom
+                                        androidx.compose.ui.geometry.Offset(padding + w, padding + (dist - w))
+                                    dist <= 2 * w + h -> // bottom edge: right → left
+                                        androidx.compose.ui.geometry.Offset(padding + w - (dist - w - h), padding + h)
+                                    else -> // left edge: bottom → top
+                                        androidx.compose.ui.geometry.Offset(padding, padding + h - (dist - 2 * w - h))
+                                }
+
+                                // Draw full border at low alpha
+                                drawRoundRect(
+                                    color = segmentColor.copy(alpha = 0.25f),
+                                    topLeft = androidx.compose.ui.geometry.Offset(padding, padding),
+                                    size = androidx.compose.ui.geometry.Size(w, h),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx()),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                                )
+                                // Draw glowing dot
+                                drawCircle(
+                                    color = segmentColor,
+                                    radius = stroke * 2.5f,
+                                    center = dotPos
+                                )
+                                // Glow halo
+                                drawCircle(
+                                    color = segmentColor.copy(alpha = 0.35f),
+                                    radius = stroke * 5f,
+                                    center = dotPos
+                                )
+                            }
                         }
 
                         // Lyrics overlay slides on top
